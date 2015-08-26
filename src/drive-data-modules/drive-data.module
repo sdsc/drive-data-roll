@@ -1,0 +1,7 @@
+#%Module1.0
+module-whatis "drive-data"
+module-whatis "Version: VERSION"
+module-whatis "Description: drive-data"
+module-whatis "Compiler: ROLLCOMPILER"
+setenv SKELETONHOME /opt/drive-data
+prepend-path PATH /opt/drive-data
