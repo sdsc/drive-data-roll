@@ -3,5 +3,5 @@ module-whatis "drive-data"
 module-whatis "Version: VERSION"
 module-whatis "Description: drive-data"
 module-whatis "Compiler: ROLLCOMPILER"
-setenv SKELETONHOME /opt/drive-data
-prepend-path PATH /opt/drive-data
+setenv DRIVEDATAHOME /opt/seagate
+prepend-path PATH /opt/seagate

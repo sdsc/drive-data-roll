@@ -61,35 +61,22 @@ include Rules.mk
 include $(SDSCDEVEL)/Pull.mk
 include $(SDSCDEVEL)/Rules.mk
 
-$(NAME).spec: DESCRIPTION LICENSE
-
-DESCRIPTION:
-	$(MODULE_LOAD_CC); \
+build: $(SRC_PKGS)
 	( \
-	  $(DESCRIBE_PKG); \
-	  $(DESCRIBE_CC) \
-	) > $@
-
-LICENSE: $(SRC_DIRS)
-	$(CHECK_LICENSE_FILES)
-	echo GPL > $@
-
-build: $(SRC_DIRS)
-	( \
-	  $(MODULE_LOAD_CC); \
-	  cd $(SOURCE_DIR); \
-	  ./configure CC=$(CC) --prefix=$(ROOT)/$(PKGROOT); \
-	  $(MAKE); \
+	  mkdir -p ../../RPMS/x86_64; \
+	  cp $(RPMS) ../../RPMS/x86_64; \
 	)
 	@echo "::: Package $(NAME) build complete :::"
 	
 install::
-	mkdir -p $(ROOT)/$(PKGROOT)/$(NAME)
+	/bin/mkdir -p $(ROOT)/$(PKGROOT)
 	( \
-	  cd $(SOURCE_DIR); \
-	  $(MAKE) install; \
+	  for F in seagate/*; do \
+	    if test ! -d $${F}; then \
+	      install -m0754 $${F} $(ROOT)/$(PKGROOT); \
+	    fi; \
+	  done \
 	)
-	$(INSTALL_LICENSE_FILES)
 	@echo "::: Package $(NAME) install complete :::"
 
 clean::

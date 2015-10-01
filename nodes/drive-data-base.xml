@@ -4,7 +4,7 @@
 
 
 	<description>
-	The drive-data Roll - http://www.graveyard.edu/drive-data
+	Packages and configuration common to all nodes.
 	</description>
 
 	<copyright>
@@ -12,9 +12,6 @@
 	All rights reserved. Rocks(r) v6.1.1 www.rocksclusters.org
 	</copyright>
 
-	<package>drive-data</package>
-	<package>drive-data-modules</package>
-	<package>drive-data-roll-test</package>
 
 
 </kickstart>

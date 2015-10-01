@@ -1,0 +1,39 @@
+<?xml version="1.0" standalone="no"?>
+
+<kickstart>
+
+
+	<description>
+	Packages and configuration specific to clients
+	</description>
+
+	<copyright>
+	Copyright (c) 2000 - 2014 The Regents of the University of California.
+	All rights reserved. Rocks(r) v6.1.1 www.rocksclusters.org
+	</copyright>
+
+	<package>sdsc-seagate-public</package>
+	<package>sdsc-seagate-private</package>
+
+<post>
+
+<!-- Setup group ownership for restricted software packages -->
+#
+# Add user groups for software w/limited usage
+#
+declare -A sw_gids=( ["seagate"]=8473 )
+for PACKAGE in "${!sw_gids[@]}"; do
+    grep -q "^${PACKAGE}-users:" /etc/group
+    if test $? -ne 0; then
+        groupadd -g "${sw_gids[$PACKAGE]}" $PACKAGE-users
+    fi
+    chgrp -R $PACKAGE-users /opt/$PACKAGE
+    chmod -R g+rX /opt/$PACKAGE
+    chmod -R g-w /opt/$PACKAGE
+    chmod -R o-rwx /opt/$PACKAGE
+done
+
+</post>
+
+
+</kickstart>

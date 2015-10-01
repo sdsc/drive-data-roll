@@ -15,11 +15,17 @@
 	<edge from="base">
 		<to>drive-data-base</to>
 	</edge>
+	<edge from="client">
+		<to>drive-data-client</to>
+	</edge>
 
 	<!-- enforce post section ordering -->
 	<!-- drive-data-base post sections execute after base post sections -->
 	<order head="base">
 		<tail>drive-data-base</tail>
+	</order>
+	<order head="client">
+		<tail>drive-data-client</tail>
 	</order>
 
 </graph>
