@@ -19,11 +19,11 @@ declare -i padsecs=${6:-30} #seconds from end of sample to end of sample period
 declare    sampledir=${7:-sampledir} #folder name for the samples, also helps organize samples
 declare    flname=$8 #file name uiniquiefier to include test case info and help identify sample
 
-if [ $firstwaitsecs -lt 0 ];then
-  firstwaitsecs=0
-  initialsample="FALSE"
+if [ $firstwaitsecs -lt 0 ]; then
+    firstwaitsecs=0
+    initialsample="FALSE"
 else
-  initialsample="TRUE"
+    initialsample="TRUE"
 fi
 runperiods=$((runsecs/sampleperiodsecs))
 period=0
@@ -73,8 +73,8 @@ usage()
 #Setup termination procedure
 makeitstop()
 {
-  #Don't start any new periods
-  exit 0
+    #Don't start any new periods
+    exit 0
 }
 
 #Set trap for termination signal
@@ -82,23 +82,23 @@ trap "makeitstop" SIGUSR1
 
 logmessage()
 {
-  echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
+    echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
 }
 
 getstats()
 {
-  iostat -mtxy $device >> $outfile_iostat.txt
-  mpstat -P ALL >> $outfile_mpstat.txt
-  vmstat -t >> $outfile_vmstat.txt
+    iostat -mtxy $device >> $outfile_iostat.txt
+    mpstat -P ALL >> $outfile_mpstat.txt
+    vmstat -t >> $outfile_vmstat.txt
 }
 
 if [ $# -lt 1 ];then usage;fi #Display usage if no parameters are given
 
 #Make folder for storing samples and log if not already existing
-if [ ! -d $sampledir ];then mkdir -p $sampledir;fi
+if [ ! -d $sampledir ]; then mkdir -p $sampledir; fi
 
 #Prepend _ to flname if not null
-if [ "x$flname" != "x" ];then flname="_"$flname;fi
+if [ "x$flname" != "x" ]; then flname="_"$flname; fi
 
 #Start log
 logmessage "$@, version $version"
@@ -108,21 +108,20 @@ logmessage "dwell $sampledwell, 1stwait $firstwaitsecs, period $sampleperiodsecs
 logmessage "Logging to $outfile"
 
 #Take first sample after firstwaitsecs
-if [ $initialsample == "TRUE" -a $runsecs -gt $((firstwaitsecs+sampledwell)) ];then
-  sleep $firstwaitsecs
-  getstats
+if [ $initialsample == "TRUE" -a $runsecs -gt $((firstwaitsecs+sampledwell)) ]; then
+    sleep $firstwaitsecs
+    getstats
 fi
 
-if [ $runsecs -gt $((period-sampledwell)) ];then
-  #Each successive sample ends padsecs seconds prior to the end of the period
-  sleep $((sampleperiodsecs-firstwaitsecs-sampledwell*2-padsecs))
+if [ $runsecs -gt $((period-sampledwell)) ]; then
+    #Each successive sample ends padsecs seconds prior to the end of the period
+    sleep $((sampleperiodsecs-firstwaitsecs-sampledwell*2-padsecs))
 
-  #Take sample at the end of each successive period
-  while [ $runperiods -ge $period ];do
-    getstats
-    if [ $runperiods -ge $period ];then sleep $((sampleperiodsecs-sampledwell));fi
-  done
-
+    #Take sample at the end of each successive period
+    while [ $runperiods -ge $period ]; do
+        getstats
+        if [ $runperiods -ge $period ]; then sleep $((sampleperiodsecs-sampledwell)); fi
+    done
 fi
 logmessage "Done"
 

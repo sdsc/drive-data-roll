@@ -21,11 +21,11 @@ declare -i padsecs=${6:-30} #seconds from end of trace to end of sample period
 declare    tracedir=${7:-tracedir} #folder name for the traces, also helps organize traces
 declare    trname=$8 #file name uiniquiefier to include test case info and help identify trace
 
-if [ $firstwaitsecs -lt 0 ];then
-  firstwaitsecs=0
-  initialtrace="FALSE"
+if [ $firstwaitsecs -lt 0 ]; then
+    firstwaitsecs=0
+    initialtrace="FALSE"
 else
-  initialtrace="TRUE"
+    initialtrace="TRUE"
 fi
 runperiods=$((runsecs/sampleperiodsecs))
 period=0
@@ -79,36 +79,36 @@ usage()
 #Setup termination procedure
 makeitstop()
 {
-  #Check if blktrace is running, if so kill it
+    #Check if blktrace is running, if so kill it
     #Apparently the trap isn't called until after blktrace completes
     declare -i maxattempts=10 attempts=0
-    for (( attempts=0; attempts < maxattempts; attempts++ ));do
-      #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
-      pid=`ps -ef | gawk '{if ($8 == "blktrace") print $2}'`
-      if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid;elif break;fi
-      sleep 1
+    for (( attempts=0; attempts < maxattempts; attempts++ )); do
+        #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
+        pid=`ps -ef | gawk '{if ($8 == "blktrace") print $2}'`
+        if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; elif break; fi
+        sleep 1
     done
     if [ $attempts -ge $maxattempts ]; then
-      logadd "Unable to stop $command in $maxattempts seconds"
+        logadd "Unable to stop $command in $maxattempts seconds"
     else
-      logadd "Stopped $command in $attempts seconds"
+        logadd "Stopped $command in $attempts seconds"
     fi
-  #Check if blkparse or btconvert is running, if so wait until they complete then exit
-  for command in blkparse btconvert.sh;do
-    declare -i maxattempts=1000 attempts=0 #large value for max
-    for (( attempts=0; attempts < maxattempts; attempts++ ));do
-      #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
-      pid=`ps -ef | gawk '{if ($8 == "'$command'") print $2}'`
-      if [ "X$pid" == "X" ]; then break;fi
-      sleep 1
+    #Check if blkparse or btconvert is running, if so wait until they complete then exit
+    for command in blkparse btconvert.sh; do
+        declare -i maxattempts=1000 attempts=0 #large value for max
+        for (( attempts=0; attempts < maxattempts; attempts++ )); do
+            #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
+            pid=`ps -ef | gawk '{if ($8 == "'$command'") print $2}'`
+            if [ "X$pid" == "X" ]; then break; fi
+            sleep 1
+        done
+        if [ $attempts -ge $maxattempts ]; then
+            logadd "$command hasn't stopped in $maxattempts seconds"
+        else
+            logadd "$command completed in $attempts seconds"
+        fi
     done
-    if [ $attempts -ge $maxattempts ]; then
-      logadd "$command hasn't stopped in $maxattempts seconds"
-    else
-      logadd "$command completed in $attempts seconds"
-    fi
-  done
-  exit 0 #exit w/o starting any further periods
+    exit 0 #exit w/o starting any further periods
 }
 
 #Set trap for termination signal
@@ -116,29 +116,29 @@ trap "makeitstop" SIGUSR1
 
 logmessage()
 {
-  echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
+    echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
 }
 
 gettrace()
 {
-  tracedt=`date +%Y-%m-%d_%H-%M`
-  outfile=$tracedir"/"$tracedt$trname"_period"$((period++))"of${runperiods}_blkp"
-  logmessage "Logging to $outfile"
-  blktrace -d $device -w $tracedwell -o - | blkparse -i - -o $outfile
-  #convert to .csv by device
-  declare -a _drives=($device)
-  for dev in ${_drives[@]};do
-    ./btconvert.sh $outfile $partfile - DC $dev
-  done
+    tracedt=`date +%Y-%m-%d_%H-%M`
+    outfile=$tracedir"/"$tracedt$trname"_period"$((period++))"of${runperiods}_blkp"
+    logmessage "Logging to $outfile"
+    blktrace -d $device -w $tracedwell -o - | blkparse -i - -o $outfile
+    #convert to .csv by device
+    declare -a _drives=($device)
+    for dev in ${_drives[@]}; do
+        ./btconvert.sh $outfile $partfile - DC $dev
+    done
 }
 
-if [ $# -lt 1 ];then usage;fi #Display usage if no parameters are given
+if [ $# -lt 1 ]; then usage; fi #Display usage if no parameters are given
 
 #Make folder for storing traces and log if not already existing
-if [ ! -d $tracedir ];then mkdir -p $tracedir;fi
+if [ ! -d $tracedir ]; then mkdir -p $tracedir; fi
 
 #Prepend _ to trname if not null
-if [ "x$trname" != "x" ];then trname="_"$trname;fi
+if [ "x$trname" != "x" ]; then trname="_"$trname; fi
 
 #Start log
 logmessage "$@, version $version"
@@ -154,20 +154,19 @@ cp /proc/partitions $partfile
 mount | grep debug || mount -t debugfs debugfs /sys/kernel/debug
 
 #Take first trace after firstwaitsecs
-if [ $initialtrace == "TRUE" -a $runsecs -gt $((firstwaitsecs+tracedwell)) ];then
-  sleep $firstwaitsecs
-  gettrace
+if [ $initialtrace == "TRUE" -a $runsecs -gt $((firstwaitsecs+tracedwell)) ]; then
+    sleep $firstwaitsecs
+    gettrace
 fi
 
-if [ $runsecs -gt $((period-tracedwell)) ];then
-  #Each successive trace ends padsecs seconds prior to the end of the period
-  sleep $((sampleperiodsecs-firstwaitsecs-tracedwell*2-padsecs))
+if [ $runsecs -gt $((period-tracedwell)) ]; then
+    #Each successive trace ends padsecs seconds prior to the end of the period
+    sleep $((sampleperiodsecs-firstwaitsecs-tracedwell*2-padsecs))
 
-  #Take trace at the end of each successive period
-  while [ $runperiods -ge $period ];do
-    gettrace
-    if [ $runperiods -ge $period ];then sleep $((sampleperiodsecs-tracedwell));fi
-  done
-
+    #Take trace at the end of each successive period
+    while [ $runperiods -ge $period ]; do
+        gettrace
+        if [ $runperiods -ge $period ]; then sleep $((sampleperiodsecs-tracedwell)); fi
+    done
 fi
 logmessage "Done"
