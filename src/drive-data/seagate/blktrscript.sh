@@ -85,7 +85,7 @@ makeitstop()
     for (( attempts=0; attempts < maxattempts; attempts++ )); do
         #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
         pid=`ps -ef | gawk '{if ($8 == "blktrace") print $2}'`
-        if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; elif break; fi
+        if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; else break; fi
         sleep 1
     done
     if [ $attempts -ge $maxattempts ]; then
