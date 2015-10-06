@@ -211,7 +211,11 @@ logmessage "Copying /proc/partitions to $partfile"
 cp /proc/partitions $partfile
 
 #Mount debug fs needed by blktrace if not already mounted
-mount | grep debug || mount -t debugfs debugfs /sys/kernel/debug
+mount -t debugfs | grep -q "/sys/kernel/debug" || mount -t debugfs debugfs /sys/kernel/debug >/dev/null 2>&1
+if [ 0 -ne $? ]; then
+    echo "$(basename $0) requires debugfs for blktrace"
+    exit 1
+fi
 
 #Take first trace after firstwaitsecs
 if [ $initialtrace == "TRUE" -a $runsecs -gt $((firstwaitsecs+tracedwell)) ]; then
