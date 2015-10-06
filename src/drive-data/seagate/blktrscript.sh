@@ -131,12 +131,16 @@ EOT
 trap_mesg()
 {
     #Check if blktrace is running, if so kill it
-    #Apparently the trap isn't called until after blktrace completes
     declare -i maxattempts=10 attempts=0
     for (( attempts=0; attempts < maxattempts; attempts++ )); do
-        #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
-        pid=`ps -ef | gawk '{if ($8 == "blktrace") print $2}'`
-        if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; else break; fi
+        declare -a pid=($(pgrep blktrace))
+        if [ ${#pid[@]} -gt 0 ]; then
+	    for (( ndx=0; ndx<${#pid[@]}; ndx++ )); do
+		    kill -SIGTERM ${pid[$ndx]} || kill -SIGINT ${pid[$ndx]} || kill -SIGKILL ${pid[$ndx]}
+	    done
+        else
+	    break
+        fi
 	_sleep 1
     done
     if [ $attempts -ge $maxattempts ]; then
@@ -148,9 +152,16 @@ trap_mesg()
     for command in blkparse btconvert.sh; do
         declare -i maxattempts=1000 attempts=0 #large value for max
         for (( attempts=0; attempts < maxattempts; attempts++ )); do
-            #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
-            pid=`ps -ef | gawk '{if ($8 == "'$command'") print $2}'`
-            if [ "X$pid" == "X" ]; then break; fi
+            declare -a pid=($(pgrep ${command}))
+            if [ ${#pid[@]} -gt 0 ]; then
+	        for (( ndx=0; ndx<${#pid[@]}; ndx++ )); do
+	            if [ "X${pid[$ndx]}" != "X" ]; then
+		            break
+	            fi
+	        done
+            else
+                break
+            fi
             _sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
