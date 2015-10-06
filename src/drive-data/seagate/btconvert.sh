@@ -1,5 +1,6 @@
 #!/bin/bash
 # Refactoring, common code to ./common.sh which must be sourced early
+# Here document for usage
 # July 2015 version 1.2
 # Changed name from blk_prsr
 # Allow multiple Action codes
@@ -28,22 +29,45 @@ source ${stxappdir}/common.sh
 
 usage()
 {
-  echo "Version: $version"
-  echo "$0 converts default format blkparse text output to .csv format"
-  echo "It also allows for filtering on trace action codes and device"
-  echo "Usage: $0 blk_parse_file partition_file [output_file_ID [action_codes [device]]]"
-  echo "First two file names are required"
-  echo "Input is from blk_parse_file"
-  echo "Output file will be named with -"
-  echo " input file name + output_file_ID + action_filter + device_filter + $outputext"
-  echo "Output_file_ID is optional, use - as a place holder if necessary"
-  echo "Action_codes for filtering are optional and can be combined (no spaces), default is CQ"
-  echo " C=completed, D=Issued, I=Inserted, Q=queued,"
-  echo " M=back merged, F=front merged, G=get request or use . for all"
-  echo "The device is a device name like sdb and is optional, default is to pass all devices"
-  echo "The partition file allows mapping device major,minor in the trace file to device names"
-  echo "The partition file can be obtained with cat /proc/partitions > part.txt"
-  echo "The partition file must come from the same system the trace came from"
+cat << EOT
+
+==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
+$0 version $version
+
+$0 converts default format blkparse text output to .csv format
+It also allows for filtering on trace action codes and device
+
+Usage: $0 blk_parse_file partition_file [output_file_ID [action_codes [device]]]
+
+First two file names are required. However parameters are positional and
+must be included when any parameter further right is included.
+
+Input parameters...
+
+    blk_parse_file - blkparse output file to be converted. Output file will be
+                     named as - blk_parse_file + output_file_ID +
+                     action_filter + device_filter + $outputext
+
+    partition_file - allows mapping device major,minor in the trace file to
+                     device names. The partition file can be obtained with...
+
+                         cat /proc/partitions > part.txt
+
+                     ...and must come from the same system the trace came from
+
+    output_file_ID - optional, use - as a place holder if necessary
+
+    action_codes   - optional, action_codes for filtering are optional and can
+                     be combined (no spaces), default is CQ.
+                     C=completed, D=Issued, I=Inserted, Q=queued,
+                     M=back merged, F=front merged, G=get request or use
+                     . for all
+
+    device         - an optional device name like sdb, default is to pass all
+                     devices
+
+==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
+EOT
 }
 
 if [ $# -eq 0 ];then

@@ -5,6 +5,7 @@ version=1.0
 # based on blktrscript.sh
 
 # Refactoring, common code to ./common.sh which must be sourced early
+# Here document for usage
 # Version 1.0, August 2015 BEL
 # Collects IO counts from /sys/block/$(basename $DEV)/stat
 # Collect iostat from selected drives
@@ -38,40 +39,73 @@ outfile=$sampledir"/"$TESTdt$flname
 
 usage()
 {
-    echo -e "\n******************************************"
-    echo "$0 version $version"
-    echo
-    echo "Captures multiple statistics files"
-    echo "Logs actions to a log file"
-    echo
-    echo "Usage: $0 device [run_time [sample_dwell [sample_period [initial_wait [end_pad [folder [name]]]]]]]"
-    echo
-    echo "All times in seconds"
-    echo "Only the device parameter is required.  However -"
-    echo " parameters are positional and must be included when any parameter further right is included"
-    echo 'device is the device name to sample as in /dev/sdx, can include multiple in quotes "/dev/sdy /dev/sdz"'
-    echo "run_time is the overall time to run the script, defaults to 14400 seconds (4 hours)"
-    echo "sample_dwell is the duration of each sample, defaults to 60 seconds"
-    echo "sample_period is period within which a sample will be taken, defaults to 3600 seconds (1 hour)"
-    echo "initial_wait is delay prior to taking the first sample in the first period, defaults to 120 seconds"
-    echo " If initial_wait is negative the initial first period sample will be skipped"
-    echo "end_pad is the time from the end of a sample to the end of a sample period, defaults to 30 seconds"
-    echo "folder is the name of the folder to hold the samples and log, defaults to sampledir"
-    echo "name is text to include in the sample file names to help identify the sample, defaults to blank"
-    echo
-    echo "Assuming a long enough run_time, two samples are taken in the first period. One after initial_wait"
-    echo " and one that completes end_pad prior to the end of the first period."
-    echo "Each subsequent period, if any, includes one sample that completes end_pad prior to the period end"
-    echo "Each sample file name begins with a date-time stamp and includes the supplied name, if any,"
-    echo " number of periods and the period number"
-    echo "An output log file is captured with a name that begins with a date-time stamp and ends in sample.log"
-    echo
-    echo "Example: $0 /dev/sdx 36000 1800 7200 60 30 DBsamples jobx"
-    echo "This samples device /dev/sdx over the course of 10 hours with half hour samples taken every two hours"
-    echo "The first two hour period has the first sample taken 1 minute after starting the script"
-    echo "All five periods have a sample taken that completes a half minute prior to the end of the period"
-    echo "sample file names are placed in the folder named DBsamples and include the string jobx in the file name"
-    echo -e "******************************************\n"
+cat << EOT
+
+==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
+$0 version $version
+
+Captures multiple statistics files and logs actions to a log file
+
+Usage: $0 device [run_time [sample_dwell [sample_period [initial_wait [end_pad [folder [name]]]]]]]
+
+Only the device parameter is required. However parameters are positional and
+must be included when any parameter further right is included.
+
+Input parameters...
+
+    device        - the device name to sample as in /dev/sdx, can include
+                    multiple in quotes, for example... "/dev/sdy /dev/sdz"
+
+    run_time      - the overall time to run the script, defaults to 14400
+                    seconds (4 hours)
+
+    sample_dwell  - the duration of each sample, defaults to 60 seconds
+
+    sample_period - the period within which a sample will be taken, defaults
+                    to 3600 seconds (1 hour)
+
+    initial_wait  - the delay prior to taking the first sample in the first
+                    period, defaults to 120 seconds. If initial_wait is -ve
+                    the initial first period sample will be skipped
+
+    end_pad       - the time from the end of a sample to the end of a sample
+                    period, defaults to 30 seconds
+
+    folder        - the name of the folder to hold the samples and log
+
+    name          - text to include in the sample file names to help identify
+                    the sample, defaults to ''
+
+Assuming a long enough run_time, two samples are taken in the first period. One
+after initial_wait and one that completes end_pad prior to the end of the first
+period.
+
+Each subsequent period, if any, includes one sample that completes end_pad prior
+to the period end.
+
+Each sample file name begins with a date-time stamp and includes the supplied
+name, if any, number of periods and the period number.
+
+An output log file is captured with a name that begins with a date-time stamp
+and ends in sample.log
+
+Example:
+
+    $0 /dev/sdx 36000 1800 7200 60 30 DBsamples jobx
+
+This samples device /dev/sdx over the course of 10 hours with half hour samplesi
+taken every two hours.
+
+The first two hour period has the first sample taken 1 minute after starting
+the script.
+
+All five periods have a sample taken that completes a half minute prior to thei
+end of the period sample file names are placed in the folder named DBsamples i
+and include the string jobx in the file name.
+
+==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
+EOT
+
     exit
 }
 

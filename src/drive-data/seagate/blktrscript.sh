@@ -4,6 +4,7 @@ version=1.1
 # blktrscript.sh orchestrates taking blktrace/parse samples
 
 # Refactoring, common code to ./common.sh which must be sourced early
+# Here document for usage
 # Version 1.1, July/August 2015 BEL
 # Based on tracescript.sh done for sysbench testing
 # Added usage info
@@ -40,44 +41,80 @@ partfile=$tracedir/$TESTdt"_partitions"
 
 usage()
 {
-    echo -e "\n******************************************"
-    echo "$0 version $version"
-    echo
-    echo "Captures multiple blktrace|blkparse output files"
-    echo "Only the blkparse output is saved, not blktrace files"
-    echo "The default blkparse output format is used"
-    echo "The /proc/partitions file is captured"
-    echo "Takes care of mounting the debug FS if not yet mounted"
-    echo "Logs actions to a log file"
-    echo
-    echo "Usage: $0 device [run_time [trace_dwell [sample_period [initial_wait [end_pad [folder [name]]]]]]]"
-    echo
-    echo "All times in seconds"
-    echo "Only the device parameter is required.  However -"
-    echo " parameters are positional and must be included when any parameter further right is included"
-    echo 'device is the device name to trace as in /dev/sdx, can include multiple in quotes "/dev/sdy /dev/sdz"'
-    echo "run_time is the overall time to run the script, defaults to 14400 seconds (4 hours)"
-    echo "trace_dwell is the duration of each trace, defaults to 60 seconds"
-    echo "sample_period is period within which a trace will be taken, defaults to 3600 seconds (1 hour)"
-    echo "initial_wait is delay prior to taking the first trace in the first period, defaults to 120 seconds"
-    echo " If initial_wait is negative the initial first period trace will be skipped"
-    echo "end_pad is the time from the end of a trace to the end of a sample period, defaults to 30 seconds"
-    echo "folder is the name of the folder to hold the traces and log, defaults to tracedir"
-    echo "name is text to include in the trace file names to help identify the trace, defaults to blank"
-    echo
-    echo "Assuming a long enough run_time, two traces are taken in the first period. One after initial_wait"
-    echo " and one that completes end_pad prior to the end of the first period."
-    echo "Each subsequent period, if any, includes one trace that completes end_pad prior to the period end"
-    echo "Each trace file name begins with a date-time stamp and includes the supplied name, if any,"
-    echo " number of periods and the period number"
-    echo "An output log file is captured with a name that begins with a date-time stamp and ends in trace.log"
-    echo
-    echo "Example: $0 /dev/sdx 36000 1800 7200 60 30 DBtraces jobx"
-    echo "This traces device /dev/sdx over the course of 10 hours with half hour traces taken every two hours"
-    echo "The first two hour period has the first trace taken 1 minute after starting the script"
-    echo "All five periods have a trace taken that completes a half minute prior to the end of the period"
-    echo "Trace file names are placed in the folder named DBtraces and include the string jobx in the file name"
-    echo -e "******************************************\n"
+cat << EOT
+
+==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
+$0 version $version
+
+Captures multiple blktrace|blkparse output files
+Only the blkparse output is saved, not blktrace files
+The default blkparse output format is used
+The /proc/partitions file is captured
+Takes care of mounting the debug FS if not yet mounted
+Logs actions to a log file
+
+Usage: $0 device [run_time [trace_dwell [sample_period [initial_wait [end_pad [folder [name]]]]]]]
+
+Only the device parameter is required. However parameters are positional and
+must be included when any parameter further right is included.
+
+Input parameters...
+
+    device        - the device name to sample as in /dev/sdx, can include
+                    multiple in quotes, for example... '/dev/sdy /dev/sdz'
+
+    run_time      - the overall time to run the script, defaults to 14400
+                    seconds (4 hours)
+
+    trace_dwell   - the duration of each trace, defaults to 60 seconds
+
+    sample_period - the period within which a trace will be taken, defaults
+                    to 3600 seconds (1 hour)
+
+    initial_wait  - the delay prior to taking the first sample in the first
+                    period, defaults to 120 seconds. If initial_wait is -ve
+                    the initial first period sample will be skipped
+
+    end_pad       - the time from the end of a sample to the end of a sample
+                    period, defaults to 30 seconds
+
+    folder        - the name of the folder to hold the samples and log
+
+    name          - text to include in the sample file names to help identify
+                    the sample, defaults to ''
+
+Assuming a long enough run_time, two traces are taken in the first period. One
+after initial_wait and one that completes end_pad prior to the end of the first
+period.
+
+Each subsequent period, if any, includes one trace that completes end_pad prior
+to the period end.
+
+Each trace file name begins with a date-time stamp and includes the supplied
+name, if any, number of periods and the period number.
+
+An output log file is captured with a name that begins with a date-time stamp
+and ends in trace.log
+
+Example:
+
+    $0 /dev/sdx 36000 1800 7200 60 30 DBtraces jobx
+
+This traces device /dev/sdx over the course of 10 hours with half hour traces
+taken every two hours.
+
+The first two hour period has the first trace taken 1 minute after starting the
+script.
+
+All five periods have a trace taken that completes a half minute prior to the
+end of the period.
+
+Trace file names are placed in the folder named DBtraces and include the string
+jobx in the file name.
+
+==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
+EOT
+
     exit
 }
 
