@@ -17,6 +17,14 @@ version=1.1
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
+declare BLKTRACE_BIN=$(which blktrace)
+declare BLKPARSE_BIN=$(which blkparse)
+
+if [[ ! -x ${BLKTRACE_BIN} ]] || [[ ! -x ${BLKPARSE_BIN} ]]; then
+    echo "$(basename $0) cannot run without blktrace and blkparse"
+    exit 1
+fi
+
 # Set parameters
 declare    device=$1 #device to trace
 declare -i runsecs=${2:-14400} #run time in seconds, entire period over which the script runs
@@ -159,7 +167,7 @@ gettrace()
     tracedt=`date +%Y-%m-%d_%H-%M`
     outfile=$tracedir"/"$tracedt$trname"_period"$((period++))"of${runperiods}_blkp"
     logmessage "Logging to $outfile"
-    blktrace -d $device -w $tracedwell -o - | blkparse -i - -o $outfile
+    ${BLKTRACE_BIN} -d $device -w $tracedwell -o - | ${BLKPARSE_BIN} -i - -o $outfile
     #convert to .csv by device
     declare -a _drives=($device)
     for drive in ${_drives[@]}; do
