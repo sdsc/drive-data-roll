@@ -3,6 +3,7 @@
 version=0.5
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
 
+# Refactoring, common code to ./common.sh which must be sourced early
 # Version 0.5, July/August 2015 BEL
 # Accepts Application-name and JobID as parameters to be used in folder and file naming
 # Accepts a run-time parameter
@@ -43,34 +44,11 @@ declare logpath="$folder/$filebase.log"
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
-logcreate()
-{
-    /bin/mkdir -p $folder
-    if [[ 0 -ne $? ]]; then
-        echo "Could not create $folder"
-        exit 1
-    else
-        /bin/touch $logpath
-        if [[ 0 -ne $? ]]; then
-            echo "Could not create $logpath"
-        exit 1
-    fi
-fi
-}
-
-logstart()
-{
-    echo "Date-time stamp  Event version $version" >> $logpath
-    logadd "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
-}
-
-logadd() #Event text passed as parameter
-{
-    echo `date +%Y-%m-%d_%H-%M` $@ >> $logpath
-}
-
-logcreate
-logstart
+#Create/Start log
+logcreate $logfile
+logstart $logfile
+logmessage "Command Line: $(readlink -fn $0) $@"
+logmessage "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
 
 #Discover drives as /dev/sdx and place in _drives array
 #Call SeaChest -s to get SCSI_generic names filtered by drive model
@@ -81,7 +59,7 @@ declare AWKBIN=$(which awk)
 declare ITDRVS=`$SEACHEST -s |grep "INTEL SSDSC2BB160G4R"   |tr -s ' '|cut -d" " -f2`
 declare SGDRVS=`$SEACHEST -s |grep "ST[0-9]00FM"   |tr -s ' '|cut -d" " -f2`
 declare -a _drives=($ITDRVS $SGDRVS)
-logadd "${#_drives[@]} drives found"
+logmessage "${#_drives[@]} drives found"
 
 #Convert SCSI generic list, /dev/sgx, to block device list, /dev/sdy
 for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
@@ -96,7 +74,7 @@ for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
   #
   #Collect block device name - sdy, and replace sgx with /dev/sdy in _drives array
   _drives[$ndx]="/dev/"`ls -ls /sys/dev/block | $AWKBIN -v pat=$_SCSIt -F/ '$0 ~ pat {print $11}' | /bin/sort -u`
-  logadd "/dev/$_drive = ${_drives[$ndx]}"
+    logmessage "/dev/$_drive = ${_drives[$ndx]}"
 done
 
 #Define scripts and their parameters
@@ -117,7 +95,7 @@ if [ $func == "START" ]; then
 
     for ((ndx=0; ndx < ${#_scriptstostart[@]}; ndx++)); do
         script=$(echo ${_scriptstostart[$ndx]} | /bin/sed "s/'//g") 
-        logadd "Starting ${script}"
+        logmessage "Starting ${script}"
         ${script} &
     done
     exit 0
@@ -140,25 +118,25 @@ if [ $func == "END" ]; then
             sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
-            logadd "Unable to stop $command in $maxattempts seconds"
+            logmessage "Unable to stop $command in $maxattempts seconds"
         else
-            logadd "Stopped $command in $attempts seconds"
+            logmessage "Stopped $command in $attempts seconds"
         fi
     done
 
     #Run end scripts
     for ((ndx=0; ndx < ${#_scriptsatend[@]}; ndx++)); do
         script=$(echo ${_scriptstostart[$ndx]} | /bin/sed "s/'//g")
-        logadd "Running   $script"
+        logmessage "Running $script"
         ${script}
-        logadd "Completed $script"
+        logmessage "Completed $script"
     done
     exit 0
 fi
 
 msg="Invalid function $func"
 echo $msg
-logadd $msg
+logmessage $msg
 exit 1 #First parameter invalid function
 
 #Observations for ps -ef

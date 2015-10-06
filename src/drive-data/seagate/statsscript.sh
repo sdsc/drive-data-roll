@@ -4,6 +4,7 @@ version=1.0
 # periodically collects multiple statistics samples
 # based on blktrscript.sh
 
+# Refactoring, common code to ./common.sh which must be sourced early
 # Version 1.0, August 2015 BEL
 # Collects IO counts from /sys/block/$(basename $DEV)/stat
 # Collect iostat from selected drives
@@ -75,18 +76,10 @@ usage()
 }
 
 #Setup termination procedure
-makeitstop()
+trap_mesg()
 {
     #Don't start any new periods
     exit 0
-}
-
-#Set trap for termination signal
-trap "makeitstop" SIGUSR1
-
-logmessage()
-{
-    echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
 }
 
 getstats()
@@ -104,8 +97,10 @@ if [ ! -d $sampledir ]; then mkdir -p $sampledir; fi
 #Prepend _ to flname if not null
 if [ "x$flname" != "x" ]; then flname="_"$flname; fi
 
-#Start log
-logmessage "$@, version $version"
+#Crate/Start log
+logcreate $logfile
+logstart $logfile
+logmessage "Command Line: $(readlink -fn $0) $@"
 
 #Log parameters & folder
 logmessage "dwell $sampledwell, 1stwait $firstwaitsecs, period $sampleperiodsecs, pad $padsecs, periods $runperiods"

@@ -3,6 +3,7 @@
 version=1.1
 # blktrscript.sh orchestrates taking blktrace/parse samples
 
+# Refactoring, common code to ./common.sh which must be sourced early
 # Version 1.1, July/August 2015 BEL
 # Based on tracescript.sh done for sysbench testing
 # Added usage info
@@ -81,7 +82,7 @@ usage()
 }
 
 #Setup termination procedure
-makeitstop()
+trap_mesg()
 {
     #Check if blktrace is running, if so kill it
     #Apparently the trap isn't called until after blktrace completes
@@ -107,20 +108,13 @@ makeitstop()
             sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
-            logadd "$command hasn't stopped in $maxattempts seconds"
+            logmessage "$command hasn't stopped in $maxattempts seconds"
         else
-            logadd "$command completed in $attempts seconds"
+            logmessage "$command completed in $attempts seconds"
         fi
     done
+
     exit 0 #exit w/o starting any further periods
-}
-
-#Set trap for termination signal
-trap "makeitstop" SIGUSR1
-
-logmessage()
-{
-    echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
 }
 
 gettrace()
@@ -144,8 +138,10 @@ if [ ! -d $tracedir ]; then mkdir -p $tracedir; fi
 #Prepend _ to trname if not null
 if [ "x$trname" != "x" ]; then trname="_"$trname; fi
 
-#Start log
-logmessage "$@, version $version"
+#Create/Start log
+logcreate $logfile
+logstart $logfile
+logmessage "Command Line: $(readlink -fn $0) $@"
 
 #Log parameters
 logmessage "dwell $tracedwell, 1stwait $firstwaitsecs, period $sampleperiodsecs, pad $padsecs, periods $runperiods"

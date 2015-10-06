@@ -1,4 +1,5 @@
 #!/bin/bash
+# Refactoring, common code to ./common.sh which must be sourced early
 # July 2015 version 1.2
 # Changed name from blk_prsr
 # Allow multiple Action codes

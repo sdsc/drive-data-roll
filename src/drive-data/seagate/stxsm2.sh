@@ -1,19 +1,11 @@
 #!/bin/bash
 
+# Refactoring, common code to ./common.sh which must be sourced early
 #Updated July 2015 BEL for use at SDSC
 #Added command-line parameter to output file name
 
 filenameprefix=$1
 
-WORDSIZE=`uname -m`
-
-if [ "${WORDSIZE}" == "x86_64" ] ; then
-	LOGCMD="./SeaDragon_LogsUtil_310_Private_64"
-	SEACHEST="./SeaChest"
-else
-	LOGCMD="./SeaDragon_LogsUtil_310_Private_32"
-	SEACHEST="./SeaChest32"
-fi
 #Detemine directory of executable
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
