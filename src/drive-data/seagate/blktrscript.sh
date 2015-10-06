@@ -138,13 +138,13 @@ trap_mesg()
     for (( attempts=0; attempts < maxattempts; attempts++ )); do
         declare -a pid=($(pgrep blktrace))
         if [ ${#pid[@]} -gt 0 ]; then
-	    for (( ndx=0; ndx<${#pid[@]}; ndx++ )); do
-		    kill -SIGTERM ${pid[$ndx]} || kill -SIGINT ${pid[$ndx]} || kill -SIGKILL ${pid[$ndx]}
-	    done
+        for (( ndx=0; ndx<${#pid[@]}; ndx++ )); do
+            kill -SIGTERM ${pid[$ndx]} || kill -SIGINT ${pid[$ndx]} || kill -SIGKILL ${pid[$ndx]}
+        done
         else
-	    break
+        break
         fi
-	_sleep 1
+    _sleep 1
     done
 
     if [ $attempts -ge $maxattempts ]; then
@@ -159,11 +159,11 @@ trap_mesg()
         for (( attempts=0; attempts < maxattempts; attempts++ )); do
             declare -a pid=($(pgrep ${command}))
             if [ ${#pid[@]} -gt 0 ]; then
-	        for (( ndx=0; ndx<${#pid[@]}; ndx++ )); do
-	            if [ "X${pid[$ndx]}" != "X" ]; then
-		            break
-	            fi
-	        done
+            for (( ndx=0; ndx<${#pid[@]}; ndx++ )); do
+                if [ "X${pid[$ndx]}" != "X" ]; then
+                    break
+                fi
+            done
             else
                 break
             fi
@@ -189,9 +189,9 @@ gettrace()
     #convert to .csv by device
     declare -a _drives=($device)
     for drive in ${_drives[@]}; do
-	    logmessage "Converting $outfile to csv"
+        logmessage "Converting $outfile to csv"
         # btconvert.sh requires device stripped of '/dev/' prefix...
-	    dev=$(echo $drive | ${AWKBIN} -F/ '{print $3}')
+        dev=$(echo $drive | ${AWKBIN} -F/ '{print $3}')
         ${stxappdir}/btconvert.sh $outfile $partfile - DC $dev
     done
 }
