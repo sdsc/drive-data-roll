@@ -131,9 +131,9 @@ trap_mesg()
         sleep 1
     done
     if [ $attempts -ge $maxattempts ]; then
-        logadd "Unable to stop $command in $maxattempts seconds"
+        logmessage "Unable to stop blktrace in $maxattempts seconds"
     else
-        logadd "Stopped $command in $attempts seconds"
+        logmessage "Stopped blktrace in $attempts seconds"
     fi
     #Check if blkparse or btconvert is running, if so wait until they complete then exit
     for command in blkparse btconvert.sh; do
