@@ -55,8 +55,6 @@ logmessage "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
 #Call SeaChest -s to get SCSI_generic names filtered by drive model
 #Expects the following format
 #SEAGATE   /dev/sg4  ST800FM0043             0056ed22               4.30      
-declare SEACHEST=${stxappdir}/SeaChest
-declare AWKBIN=$(which awk)
 declare ITDRVS=`$SEACHEST -s |grep "INTEL SSDSC2BB160G4R"   |tr -s ' '|cut -d" " -f2`
 declare SGDRVS=`$SEACHEST -s |grep "ST[0-9]00FM"   |tr -s ' '|cut -d" " -f2`
 declare -a _drives=($ITDRVS $SGDRVS)
