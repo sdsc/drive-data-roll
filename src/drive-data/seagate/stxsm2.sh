@@ -14,6 +14,9 @@ else
 	LOGCMD="./SeaDragon_LogsUtil_310_Private_32"
 	SEACHEST="./SeaChest32"
 fi
+#Detemine directory of executable
+declare stxappdir=$(dirname $0)
+source ${stxappdir}/common.sh
 
 DRVS=`$SEACHEST -s |grep "ST[0-9]00FM"   |tr -s ' '|cut -d" " -f2`
 for DRV in $DRVS ; do

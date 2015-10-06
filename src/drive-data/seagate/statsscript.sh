@@ -9,6 +9,10 @@ version=1.0
 # Collect iostat from selected drives
 # collect mpstat
 
+# Detemine directory of executable
+declare stxappdir=$(dirname $0)
+source ${stxappdir}/common.sh
+
 # Set parameters
 declare    device=$1 #device to sample
 declare -i runsecs=${2:-14400} #run time in seconds, entire period over which the script runs

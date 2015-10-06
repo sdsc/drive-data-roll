@@ -41,6 +41,7 @@ declare logpath="$folder/$filebase.log"
 
 #Detemine directory of executable
 declare stxappdir=$(dirname $0)
+source ${stxappdir}/common.sh
 
 logcreate()
 {

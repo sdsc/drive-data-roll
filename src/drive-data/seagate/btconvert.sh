@@ -21,6 +21,10 @@
 #
 version=1.2
 outputext="-btc.csv"
+# Detemine directory of executable and source common functions
+declare stxappdir=`dirname $0`
+source ${stxappdir}/common.sh
+
 usage()
 {
   echo "Version: $version"
