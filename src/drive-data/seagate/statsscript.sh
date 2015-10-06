@@ -1,12 +1,16 @@
 #!/bin/bash
 
-version=1.0
+version=1.1
 # periodically collects multiple statistics samples
 # based on blktrscript.sh
 
+# Version 1.1, October 2014 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
 # Fix stats binary logging to variable that evaluates to 'null'
+# _sleep() function to allow interruption of long waits
+# Changes for readability
+
 # Version 1.0, August 2015 BEL
 # Collects IO counts from /sys/block/$(basename $DEV)/stat
 # Collect iostat from selected drives
@@ -133,7 +137,7 @@ getstats()
     ${VMSTAT_BIN} -t >> ${outfile}_vmstat.txt
 }
 
-if [ $# -lt 1 ];then usage;fi #Display usage if no parameters are given
+if [ $# -lt 1 ]; then usage; fi #Display usage if no parameters are given
 
 #Make folder for storing samples and log if not already existing
 if [ ! -d $sampledir ]; then mkdir -p $sampledir; fi
@@ -152,21 +156,28 @@ logmessage "Logging to $outfile"
 
 #Take first sample after firstwaitsecs
 if [ $initialsample == "TRUE" -a $runsecs -gt $((firstwaitsecs+sampledwell)) ]; then
-    sleep $firstwaitsecs
+    logmessage "Sleeping for $firstwaitsecs before first sample."
+    _sleep $firstwaitsecs
     getstats
 fi
 
 if [ $runsecs -gt $((period-sampledwell)) ]; then
     #Each successive sample ends padsecs seconds prior to the end of the period
-    sleep $((sampleperiodsecs-firstwaitsecs-sampledwell*2-padsecs))
+    periodwaitsecs=$((sampleperiodsecs-firstwaitsecs-sampledwell*2-padsecs))
+    logmessage "Sleeping for $periodwaitsecs before next sample."
+    _sleep $periodwaitsecs
 
     #Take sample at the end of each successive period
     while [ $runperiods -ge $period ]; do
         getstats
-        if [ $runperiods -ge $period ]; then sleep $((sampleperiodsecs-sampledwell)); fi
+        if [ $runperiods -ge $period ]; then
+            _sleep $((sampleperiodsecs-sampledwell))
+        fi
     done
 fi
 logmessage "Done"
+
+exit 0
 
 # Notes:
 # /sys/block//stat
