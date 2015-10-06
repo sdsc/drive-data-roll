@@ -125,7 +125,7 @@ if [ $func == "END" ]; then
 
     #Run end scripts
     for ((ndx=0; ndx < ${#_scriptsatend[@]}; ndx++)); do
-        script=$(echo ${_scriptstostart[$ndx]} | /bin/sed "s/'//g")
+        script=$(echo ${_scriptsatend[$ndx]} | /bin/sed "s/'//g")
         logmessage "Running $script"
         ${script}
         logmessage "Completed $script"
