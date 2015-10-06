@@ -162,8 +162,11 @@ gettrace()
     blktrace -d $device -w $tracedwell -o - | blkparse -i - -o $outfile
     #convert to .csv by device
     declare -a _drives=($device)
-    for dev in ${_drives[@]}; do
-        ./btconvert.sh $outfile $partfile - DC $dev
+    for drive in ${_drives[@]}; do
+	    logmessage "Converting $outfile to csv"
+        # btconvert.sh requires device stripped of '/dev/' prefix...
+	    dev=$(echo $drive | ${AWKBIN} -F/ '{print $3}')
+        ${stxappdir}/btconvert.sh $outfile $partfile - DC $dev
     done
 }
 
