@@ -4,6 +4,7 @@ version=0.5
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
 
 # Refactoring, common code to ./common.sh which must be sourced early
+# _sleep() function to allow interruption of long waits
 # Version 0.5, July/August 2015 BEL
 # Accepts Application-name and JobID as parameters to be used in folder and file naming
 # Accepts a run-time parameter
@@ -115,7 +116,7 @@ if [ $func == "END" ]; then
             #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
             pid=`ps -ef | gawk '{if ($9 == "'$command'") print $2}'` #CMD will be /bin/bash, so command is $9
             if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; else break; fi
-            sleep 1
+            _sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
             logmessage "Unable to stop $command in $maxattempts seconds"

@@ -5,6 +5,7 @@ version=1.1
 
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
+# _sleep() function to allow interruption of long waits
 # Version 1.1, July/August 2015 BEL
 # Based on tracescript.sh done for sysbench testing
 # Added usage info
@@ -136,7 +137,7 @@ trap_mesg()
         #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
         pid=`ps -ef | gawk '{if ($8 == "blktrace") print $2}'`
         if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; else break; fi
-        sleep 1
+	_sleep 1
     done
     if [ $attempts -ge $maxattempts ]; then
         logmessage "Unable to stop blktrace in $maxattempts seconds"
@@ -150,7 +151,7 @@ trap_mesg()
             #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
             pid=`ps -ef | gawk '{if ($8 == "'$command'") print $2}'`
             if [ "X$pid" == "X" ]; then break; fi
-            sleep 1
+            _sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
             logmessage "$command hasn't stopped in $maxattempts seconds"
@@ -203,18 +204,23 @@ mount | grep debug || mount -t debugfs debugfs /sys/kernel/debug
 
 #Take first trace after firstwaitsecs
 if [ $initialtrace == "TRUE" -a $runsecs -gt $((firstwaitsecs+tracedwell)) ]; then
-    sleep $firstwaitsecs
+    logmessage "Sleeping for $firstwaitsecs before first sample."
+    _sleep $firstwaitsecs
     gettrace
 fi
 
 if [ $runsecs -gt $((period-tracedwell)) ]; then
     #Each successive trace ends padsecs seconds prior to the end of the period
-    sleep $((sampleperiodsecs-firstwaitsecs-tracedwell*2-padsecs))
+    periodwaitsecs=$((sampleperiodsecs-firstwaitsecs-tracedwell*2-padsecs))
+    logmessage "Sleeping for $periodwaitsecs before next sample."
+    _sleep $periodwaitsecs
 
     #Take trace at the end of each successive period
     while [ $runperiods -ge $period ]; do
         gettrace
-        if [ $runperiods -ge $period ]; then sleep $((sampleperiodsecs-tracedwell)); fi
+        if [ $runperiods -ge $period ]; then
+            _sleep $((sampleperiodsecs-tracedwell))
+        fi
     done
 fi
 logmessage "Done"
