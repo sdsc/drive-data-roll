@@ -1,6 +1,11 @@
 #!/bin/bash
+
+version=1.3
+# Version 1.3, October 2014 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
+# Changes for readability
+
 # July 2015 version 1.2
 # Changed name from blk_prsr
 # Allow multiple Action codes
@@ -21,8 +26,6 @@
 # Output is csv and contains DeviceName,SequenceNum,TimeStamp(sec),Action,Operation,StartBlock,NumOfBlocks
 #
 #
-version=1.2
-outputext="-btc.csv"
 # Detemine directory of executable and source common functions
 declare stxappdir=`dirname $0`
 source ${stxappdir}/common.sh
@@ -70,26 +73,27 @@ Input parameters...
 EOT
 }
 
-if [ $# -eq 0 ];then
-  usage;exit
-fi
+if [ $# -lt 2 ]; then usage; exit; fi #Display usage if less than two parameters are given
 
 blkfile=$1
 prtfile=$2
 outfile=$3
 declare -u actn=${4:-CQ}
 devfltr=$5
+outputext="-btc.csv"
 
 #Verify blk_parse file exists
-if [ ! -f $blkfile ];then
-  echo -e "\n ##>> blk_parse file $blkfile not found\n"
-  usage;exit 1
+if [ ! -f $blkfile ]; then
+    echo -e "\n ##>> blk_parse file $blkfile not found\n"
+    usage
+    exit 1
 fi
 
 #Verify partition file exists
-if [ ! -f $prtfile ];then
-  echo -e "\n ##>> partition file $prtfile not found\n"
-  usage;exit 1
+if [ ! -f $prtfile ]; then
+    echo -e "\n ##>> partition file $prtfile not found\n"
+    usage
+    exit 1
 fi
 
 # Build device mapping tables
@@ -98,30 +102,30 @@ declare -A _devnamemm  #indexed by name
 declare -i ptncnt
 bld_dev_tbl()
 {
-  declare -a _devparttbl #full file as a single dimension array
-  declare -i devpartndx  #line index to partition file
-  declare -i valperrow=4 mjrofst=0 mnrofst=1 blkofst=2 namofst=3 rowndx
-  local partfile=$1
-  _devparttbl=($(cat $partfile))
-  #validate partition file by examining header row
-  if [ ${_devparttbl[$mjrofst]} != "major" -o ${_devparttbl[$mnrofst]} != "minor" -o ${_devparttbl[$blkofst]} != "#blocks" -o ${_devparttbl[$namofst]} != "name" ];then
-    echo "invalid partition file - first line must contain \"major minor #blocks name\""
-    exit 2
-  fi
-  #calculate # of partition entries
-  ptncnt=$((${#_devparttbl[@]} / $valperrow - 1))
-  echo "$ptncnt partition entries found"
-  #build an associative array with key = major,minor pair as will be found in the Blk_parse file and a value of the partition name
-  for (( devpartndx=1 ; $devpartndx <= $ptncnt ; devpartndx++ ))
-  do
-    rowndx=$((devpartndx * $valperrow)) #row index in partition table
-    pmm="${_devparttbl[$(($rowndx + $mjrofst))]},${_devparttbl[$(($rowndx + $mnrofst))]}" #partition major,minor
-    pnam="${_devparttbl[$(($rowndx + $namofst))]}" #partition name
-    pblk="${_devparttbl[$(($rowndx + $blkofst))]}" #partition #blocks
-    #echo "partition $devpartndx mm=$pmm name=$pnam blocks=$pblk"
-    _devmmname[$pmm]=$pnam
-    _devnamemm[$pnam]=$pmm
-  done
+    declare -a _devparttbl #full file as a single dimension array
+    declare -i devpartndx  #line index to partition file
+    declare -i valperrow=4 mjrofst=0 mnrofst=1 blkofst=2 namofst=3 rowndx
+    local partfile=$1
+    _devparttbl=($(cat $partfile))
+    #validate partition file by examining header row
+    if [ ${_devparttbl[$mjrofst]} != "major" -o ${_devparttbl[$mnrofst]} != "minor" -o ${_devparttbl[$blkofst]} != "#blocks" -o ${_devparttbl[$namofst]} != "name" ]; then
+        echo "invalid partition file - first line must contain \"major minor #blocks name\""
+        exit 2
+    fi
+    #calculate # of partition entries
+    ptncnt=$((${#_devparttbl[@]} / $valperrow - 1))
+    #echo "$ptncnt partition entries found"
+    #build an associative array with key = major,minor pair as will be found in the Blk_parse file and a value of the partition name
+    for (( devpartndx=1 ; $devpartndx <= $ptncnt ; devpartndx++ ))
+    do
+        rowndx=$((devpartndx * $valperrow)) #row index in partition table
+        pmm="${_devparttbl[$(($rowndx + $mjrofst))]},${_devparttbl[$(($rowndx + $mnrofst))]}" #partition major,minor
+        pnam="${_devparttbl[$(($rowndx + $namofst))]}" #partition name
+        pblk="${_devparttbl[$(($rowndx + $blkofst))]}" #partition #blocks
+        #echo "partition $devpartndx mm=$pmm name=$pnam blocks=$pblk"
+        _devmmname[$pmm]=$pnam
+        _devnamemm[$pnam]=$pmm
+    done
 }
 
 bld_dev_tbl $prtfile
@@ -135,20 +139,20 @@ bld_dev_tbl $prtfile
 #Build display values for action if it is . and device filter
 dispactn=$actn
 dispdevf=$devfltr
-if [ $actn == "." ];then dispactn="all";fi
+if [ $actn == "." ]; then dispactn="all"; fi
 
 #Convert device-filter name to major,minor found in blk_parse
 mmfltr="1" #default if no device-filter given
 mmval="1"  #default it no device filter given
-if [ "x$devfltr" != "x" ];then
-  mmfltr="\"${_devnamemm[$devfltr]}\""
-  mmval="\$1"
-  dispdevf="_$devfltr"
+if [ "x$devfltr" != "x" ]; then
+    mmfltr="\"${_devnamemm[$devfltr]}\""
+    mmval="\$1"
+    dispdevf="_$devfltr"
 fi
 
 # Form output file name with input file name, output_file_ID, action filter, device filter and -btc.csv
-if [ "x$outfile" == "x-" ];then outfile="";fi
-if [ "x$outfile" != "x" ];then outfile="_"$outfile;fi
+if [ "x$outfile" == "x-" ]; then outfile=""; fi
+if [ "x$outfile" != "x" ]; then outfile="_"$outfile; fi
 outfile=$blkfile$outfile"_"$dispactn$dispdevf$outputext
 
 echo "Reading trace file $blkfile"
@@ -156,14 +160,14 @@ echo "Reading partition file $prtfile"
 echo "Writing csv file $outfile"
 echo "Filtering for action codes $dispactn"
 
-if [ $actn != "." ];then actn="[$actn]";fi #brackets for awk matching expression, . for any character
+if [ $actn != "." ]; then actn="[$actn]"; fi #brackets for awk matching expression, . for any character
 
-if [ $mmfltr == "\"\"" ];then
-  echo "device $devfltr not found in partition table"
-  cat $prtfile
-  exit 2
-elif [ $mmfltr != "1" ];then
-  echo "Filtering for device $devfltr"
+if [ $mmfltr == "\"\"" ]; then
+    echo "device $devfltr not found in partition table"
+    cat $prtfile
+    exit 2
+elif [ $mmfltr != "1" ]; then
+    echo "Filtering for device $devfltr"
 fi
 
 # Process trace file, passing only rows that match the selected Action values
@@ -181,11 +185,11 @@ echo "DevName,CPU,SeqNum,Time(sec),PID,Action,Operation,StartBlk,NumBlks,Process
 declare -a _mms=(${_devnamemm[@]})
 gawkxlate="{"
 for (( ndx=0 ; $ndx < $ptncnt ; ndx++ ));do
-  #echo "${_mms[$ndx]}=${_devmmname[${_mms[$ndx]}]}"
-  gawkxlate+="if (\$1 == \"${_mms[$ndx]}\") DEVN=\"${_devmmname[${_mms[$ndx]}]}\"; else "
+    #echo "${_mms[$ndx]}=${_devmmname[${_mms[$ndx]}]}"
+    gawkxlate+="if (\$1 == \"${_mms[$ndx]}\") DEVN=\"${_devmmname[${_mms[$ndx]}]}\"; else "
 done
 gawkxlate+="DEVN=\"Y\";"
 #echo $gawkxlate
 
 #Used double quoting with \escape to allow shell variable expansion
-gawk "BEGIN {OFS = \",\"; DEVN=\"X\"}; {if (\$6 ~ /$actn/ && \$9 == \"+\" && $mmval == $mmfltr) $gawkxlate print DEVN, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$10, \$11}}" < $blkfile >> $outfile
+${AWKBIN} "BEGIN {OFS = \",\"; DEVN=\"X\"}; {if (\$6 ~ /$actn/ && \$9 == \"+\" && $mmval == $mmfltr) $gawkxlate print DEVN, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$10, \$11}}" < $blkfile >> $outfile

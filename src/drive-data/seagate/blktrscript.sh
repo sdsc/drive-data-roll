@@ -1,11 +1,14 @@
 #!/bin/bash
 
-version=1.1
+version=1.2
 # blktrscript.sh orchestrates taking blktrace/parse samples
 
+# Version 1.2, October 2014 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
 # _sleep() function to allow interruption of long waits
+# Changes for readability
+
 # Version 1.1, July/August 2015 BEL
 # Based on tracescript.sh done for sysbench testing
 # Added usage info
@@ -143,11 +146,13 @@ trap_mesg()
         fi
 	_sleep 1
     done
+
     if [ $attempts -ge $maxattempts ]; then
         logmessage "Unable to stop blktrace in $maxattempts seconds"
     else
         logmessage "Stopped blktrace in $attempts seconds"
     fi
+
     #Check if blkparse or btconvert is running, if so wait until they complete then exit
     for command in blkparse btconvert.sh; do
         declare -i maxattempts=1000 attempts=0 #large value for max
@@ -164,6 +169,7 @@ trap_mesg()
             fi
             _sleep 1
         done
+
         if [ $attempts -ge $maxattempts ]; then
             logmessage "$command hasn't stopped in $maxattempts seconds"
         else
@@ -239,3 +245,5 @@ if [ $runsecs -gt $((period-tracedwell)) ]; then
     done
 fi
 logmessage "Done"
+
+exit 0
