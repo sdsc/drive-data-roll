@@ -38,8 +38,8 @@ declare -i padsecs=0 #seconds from end of trace to end of sample period
 #Build folder name
 declare TESTdt=`date +%Y-%m-%d_%H-%M`
 declare filebase="$appname_jobid_$(hostname -s)"
-declare folder="/scratch/drive-data/$jobid/$TESTdt_$filebase"
-declare logpath="$folder/$filebase.log"
+declare folder="/scratch/drive-data/$appname/$jobid/$TESTdt_$filebase"
+declare logfile="$folder/$filebase.log"
 
 #Detemine directory of executable
 declare stxappdir=$(dirname $0)
