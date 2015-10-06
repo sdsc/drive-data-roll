@@ -6,6 +6,7 @@ version=1.0
 
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
+# Fix stats binary logging to variable that evaluates to 'null'
 # Version 1.0, August 2015 BEL
 # Collects IO counts from /sys/block/$(basename $DEV)/stat
 # Collect iostat from selected drives
@@ -14,6 +15,15 @@ version=1.0
 # Detemine directory of executable
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
+
+declare IOSTAT_BIN=$(which iostat)
+declare MPSTAT_BIN=$(which mpstat)
+declare VMSTAT_BIN=$(which vmstat)
+
+if [[ ! -x ${IOSTAT_BIN} ]] || [[ ! -x ${MPSTAT_BIN} ]] || [[ ! -x ${VMSTAT_BIN} ]]; then
+    echo "$(basename $0) cannot run without iostat, mpstat and vmstat"
+    exit 1
+fi
 
 # Set parameters
 declare    device=$1 #device to sample
@@ -118,9 +128,9 @@ trap_mesg()
 
 getstats()
 {
-    iostat -mtxy $device >> $outfile_iostat.txt
-    mpstat -P ALL >> $outfile_mpstat.txt
-    vmstat -t >> $outfile_vmstat.txt
+    ${IOSTAT_BIN} -mtxy $device >> ${outfile}_iostat.txt
+    ${MPSTAT_BIN} -P ALL >> ${outfile}_mpstat.txt
+    ${VMSTAT_BIN} -t >> ${outfile}_vmstat.txt
 }
 
 if [ $# -lt 1 ];then usage;fi #Display usage if no parameters are given
