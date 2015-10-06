@@ -1,6 +1,10 @@
 #!/bin/bash
 
+version=0.1
+# Version 0.1, October 2014 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
+# Changes for readability
+
 #Updated July 2015 BEL for use at SDSC
 #Added command-line parameter to output file name
 
@@ -18,8 +22,8 @@ for DRV in $DRVS ; do
 done
 #Changed file-name structure below BEL
 #THISHOST=`hostname`
-#LOGZIPFILE="AllLogs.${THISHOST}.tar.gz" 
-LOGZIPFILE=$1"_SM2.tar.gz" 
+#LOGZIPFILE="AllLogs.${THISHOST}.tar.gz"
+LOGZIPFILE=$1"_SM2.tar.gz"
 
 #Added rm and removed mv and echo commands BEL
 #tar -cvzf $LOGZIPFILE *.UDS  *.SM2
