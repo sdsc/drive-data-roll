@@ -1,10 +1,14 @@
 #!/bin/bash
 
-version=0.5
+version=0.6
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
 
+# Version 0.6, October 2014 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
+# _scriptstostart array restructured
 # _sleep() function to allow interruption of long waits
+# Changes for readability
+
 # Version 0.5, July/August 2015 BEL
 # Accepts Application-name and JobID as parameters to be used in folder and file naming
 # Accepts a run-time parameter
@@ -54,7 +58,7 @@ logmessage "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
 #Discover drives as /dev/sdx and place in _drives array
 #Call SeaChest -s to get SCSI_generic names filtered by drive model
 #Expects the following format
-#SEAGATE   /dev/sg4  ST800FM0043             0056ed22               4.30      
+#SEAGATE   /dev/sg4  ST800FM0043             0056ed22               4.30
 declare ITDRVS=`$SEACHEST -s |grep "INTEL SSDSC2BB160G4R"   |tr -s ' '|cut -d" " -f2`
 declare SGDRVS=`$SEACHEST -s |grep "ST[0-9]00FM"   |tr -s ' '|cut -d" " -f2`
 declare -a _drives=($ITDRVS $SGDRVS)
@@ -62,17 +66,17 @@ logmessage "${#_drives[@]} drives found"
 
 #Convert SCSI generic list, /dev/sgx, to block device list, /dev/sdy
 for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
-  _drive=`echo ${_drives[$ndx]} | cut -d"/" -f3` #strip /dev/
-  #Find sgx string in /sys/class/scsi_generic
-  # lrwxrwxrwx. 1 root root 0 Jul 23 09:32 sg0 -> ../../devices/pci0000:00/0000:00:02.0/0000:02:00.0/host0/target0:2:0/0:2:0:0/scsi_generic/sg0
-  #
-  #Collect SCSI target string - targetH:B:T
-  _SCSIt=`ls -ls /sys/class/scsi_generic | $AWKBIN -v pat=$_drive -F/ '$0 ~ pat {print $8}'`
-  #Find target string in /sys/dev/block
-  # lrwxrwxrwx. 1 root root 0 Jul 23 09:37 8:0 -> ../../devices/pci0000:00/0000:00:02.0/0000:02:00.0/host0/target0:2:0/0:2:0:0/block/sda
-  #
-  #Collect block device name - sdy, and replace sgx with /dev/sdy in _drives array
-  _drives[$ndx]="/dev/"`ls -ls /sys/dev/block | $AWKBIN -v pat=$_SCSIt -F/ '$0 ~ pat {print $11}' | /bin/sort -u`
+    _drive=`echo ${_drives[$ndx]} | cut -d"/" -f3` #strip /dev/
+    #Find sgx string in /sys/class/scsi_generic
+    # lrwxrwxrwx. 1 root root 0 Jul 23 09:32 sg0 -> ../../devices/pci0000:00/0000:00:02.0/0000:02:00.0/host0/target0:2:0/0:2:0:0/scsi_generic/sg0
+    #
+    #Collect SCSI target string - targetH:B:T
+    _SCSIt=`ls -ls /sys/class/scsi_generic | $AWKBIN -v pat=$_drive -F/ '$0 ~ pat {print $8}'`
+    #Find target string in /sys/dev/block
+    # lrwxrwxrwx. 1 root root 0 Jul 23 09:37 8:0 -> ../../devices/pci0000:00/0000:00:02.0/0000:02:00.0/host0/target0:2:0/0:2:0:0/block/sda
+    #
+    #Collect block device name - sdy, and replace sgx with /dev/sdy in _drives array
+    _drives[$ndx]="/dev/"`ls -ls /sys/dev/block | $AWKBIN -v pat=$_SCSIt -F/ '$0 ~ pat {print $11}' | /bin/sort -u`
     logmessage "/dev/$_drive = ${_drives[$ndx]}"
 done
 
@@ -80,10 +84,11 @@ done
 #Array for scripts to run at start. Can be added to. Run in their own thread.
 declare -a _scriptstostart=()
 for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
-  script="'${stxappdir}/blktrscript.sh ${_drives[$ndx]} $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase'"
-  _scriptstostart+=("$script")
-  script="'${stxappdir}/statsscript.sh ${_drives[$ndx]} $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase'"
-  _scriptstostart+=("$script")
+    _drive=`echo ${_drives[$ndx]} | cut -d"/" -f3` #strip /dev/
+    script="'${stxappdir}/blktrscript.sh ${_drives[$ndx]} $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder ${filebase}_${_drive}'"
+    _scriptstostart+=("$script")
+    script="'${stxappdir}/statsscript.sh ${_drives[$ndx]} $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder ${filebase}_${_drive}'"
+    _scriptstostart+=("$script")
 done
 
 #Array for scripts to run at end. Can be added to. Run sequentially in this thread.
@@ -91,9 +96,8 @@ declare -a _scriptsatend=("${stxappdir}/stxm2.sh")
 
 #Kick off sampling scripts in separate threads and return
 if [ $func == "START" ]; then
-
     for ((ndx=0; ndx < ${#_scriptstostart[@]}; ndx++)); do
-        script=$(echo ${_scriptstostart[$ndx]} | /bin/sed "s/'//g") 
+        script=$(echo ${_scriptstostart[$ndx]} | /bin/sed "s/'//g")
         logmessage "Starting ${script}"
         ${script} &
     done
@@ -113,7 +117,10 @@ if [ $func == "END" ]; then
         for (( attempts=0; attempts < maxattempts; attempts++ )); do
             #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
             pid=`ps -ef | gawk '{if ($9 == "'$command'") print $2}'` #CMD will be /bin/bash, so command is $9
-            if [ "X$pid" != "X" ]; then kill -SIGUSR1 $pid; else break; fi
+            if [ "X$pid" != "X" ]; then
+                kill -SIGUSR1 $pid
+            else break
+            fi
             _sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
@@ -152,7 +159,7 @@ exit 1 #First parameter invalid function
 #This is the child process that has been started, $? is 0
 #0:root     27763 27762  0 10:24 pts/0    00:00:00 /bin/bash ./count.sh 5:
 #Call the script again with no parameter, does not start a new subprocess
-#[root@T620Eric SDSC]# ./test.sh 
+#[root@T620Eric SDSC]# ./test.sh
 #0
 #./test.sh
 #root     27777  9264  0 10:24 pts/0    00:00:00 /bin/bash ./test.sh
@@ -161,9 +168,9 @@ exit 1 #First parameter invalid function
 #27780:
 #This is the previously invoked subprocess now running on its own, $? is 0
 #0:root     27763     1  0 10:24 pts/0    00:00:00 /bin/bash ./count.sh 5:
-#[root@T620Eric SDSC]# 
+#[root@T620Eric SDSC]#
 #Time elapses and the subprocess terminates
-#[root@T620Eric SDSC]# ./test.sh 
+#[root@T620Eric SDSC]# ./test.sh
 #0
 #./test.sh
 #root     27796  9264  0 10:27 pts/0    00:00:00 /bin/bash ./test.sh
@@ -172,4 +179,3 @@ exit 1 #First parameter invalid function
 #27799:
 #There is no process named count, $? is still 0
 #0::
-
