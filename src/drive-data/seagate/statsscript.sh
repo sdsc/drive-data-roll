@@ -42,11 +42,12 @@ declare    flname=$8 #file name uiniquiefier to include test case info and help 
 if [ $firstwaitsecs -lt 0 ]; then
     firstwaitsecs=0
     initialsample="FALSE"
+    period=1
 else
     initialsample="TRUE"
+    period=0
 fi
 runperiods=$((runsecs/sampleperiodsecs))
-period=0
 TESTdt=`date +%Y-%m-%d_%H-%M`
 logfile=$sampledir"/"$TESTdt"sample.log"
 outfile=$sampledir"/"$TESTdt$flname
