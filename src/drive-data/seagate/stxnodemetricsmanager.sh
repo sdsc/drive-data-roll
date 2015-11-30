@@ -1,9 +1,19 @@
 #!/bin/bash
 
-version=0.6
+version=0.66
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
 
-# Version 0.6, October 2014 TKC
+# Version 0.66, November 2015 BEL
+# Added basefolder to define the base location for collected files and moved log to this folder
+# Corrected formation filebase and folder to match design spec
+# Removed date-time-stamp from folder definition, this is a spec change
+# Corrected name of drive logging script from stxm2.sh to stxsm2.sh
+# Remove for loop from start script generation and fixed quoting around drives ie "/dev/sdx /dev/sdy . . ."
+# Fixed convert from SCSI generic by referencing fields from the end of the string
+# Simplified start script initiation
+# Added folder and filebase to end command SM2
+
+# Version 0.6, October 2015 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # _scriptstostart array restructured
 # _sleep() function to allow interruption of long waits
@@ -20,7 +30,7 @@ version=0.6
 set -e
 
 if [ $# -ne 4 ]; then #note can't log this as log is not set up at this point
-  echo "Please specify function[start|end] application-name job-id run-time on command line"
+  echo "Please specify function[start|end] application-name job-id run-time (sec) on command line"
   exit 1
 fi
 
@@ -41,9 +51,10 @@ declare -i padsecs=0 #seconds from end of trace to end of sample period
 
 #Build folder name
 declare TESTdt=`date +%Y-%m-%d_%H-%M`
-declare filebase="$appname_jobid_$(hostname -s)"
-declare folder="/scratch/drive-data/$appname/$jobid/$TESTdt_$filebase"
-declare logfile="$folder/$filebase.log"
+declare filebase="${appname}_${jobid}_$(hostname -s)"
+declare basefolder="/scratch/drive-data/"
+declare folder="$basefolder/$appname/${appname}_$jobid/$filebase"
+declare logfile="$basefolder/$(hostname -s).log"
 
 #Detemine directory of executable
 declare stxappdir=$(dirname $0)
@@ -66,40 +77,36 @@ logmessage "${#_drives[@]} drives found"
 
 #Convert SCSI generic list, /dev/sgx, to block device list, /dev/sdy
 for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
-    _drive=`echo ${_drives[$ndx]} | cut -d"/" -f3` #strip /dev/
+    drive=`echo ${_drives[$ndx]} | cut -d"/" -f3` #strip /dev/
     #Find sgx string in /sys/class/scsi_generic
     # lrwxrwxrwx. 1 root root 0 Jul 23 09:32 sg0 -> ../../devices/pci0000:00/0000:00:02.0/0000:02:00.0/host0/target0:2:0/0:2:0:0/scsi_generic/sg0
     #
     #Collect SCSI target string - targetH:B:T
-    _SCSIt=`ls -ls /sys/class/scsi_generic | $AWKBIN -v pat=$_drive -F/ '$0 ~ pat {print $8}'`
+    SCSIt=`ls -ls /sys/class/scsi_generic | $AWKBIN -F/ '{if (NF > 2) {if ($(NF) == "'$drive'") print $(NF-3)}}'`
     #Find target string in /sys/dev/block
     # lrwxrwxrwx. 1 root root 0 Jul 23 09:37 8:0 -> ../../devices/pci0000:00/0000:00:02.0/0000:02:00.0/host0/target0:2:0/0:2:0:0/block/sda
     #
     #Collect block device name - sdy, and replace sgx with /dev/sdy in _drives array
-    _drives[$ndx]="/dev/"`ls -ls /sys/dev/block | $AWKBIN -v pat=$_SCSIt -F/ '$0 ~ pat {print $11}' | /bin/sort -u`
-    logmessage "/dev/$_drive = ${_drives[$ndx]}"
+    _drives[$ndx]="/dev/"`ls -ls /sys/dev/block | $AWKBIN -F/ '{if (NF > 2) {if ($(NF-3) == "'$SCSIt'") print $(NF)}}'`
+    logmessage "/dev/$drive = ${_drives[$ndx]}"
 done
 
 #Define scripts and their parameters
 #Array for scripts to run at start. Can be added to. Run in their own thread.
-declare -a _scriptstostart=()
-for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
-    _drive=`echo ${_drives[$ndx]} | cut -d"/" -f3` #strip /dev/
-    script="'${stxappdir}/blktrscript.sh ${_drives[$ndx]} $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder ${filebase}_${_drive}'"
-    _scriptstostart+=("$script")
-    script="'${stxappdir}/statsscript.sh ${_drives[$ndx]} $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder ${filebase}_${_drive}'"
-    _scriptstostart+=("$script")
-done
+declare -a _scriptstostart=(\
+"${stxappdir}/blktrscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase" \
+"${stxappdir}/statsscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase"\
+)
 
 #Array for scripts to run at end. Can be added to. Run sequentially in this thread.
-declare -a _scriptsatend=("${stxappdir}/stxm2.sh")
+declare -a _scriptsatend=("${stxappdir}/stxsm2.sh $folder $filebase")
 
 #Kick off sampling scripts in separate threads and return
 if [ $func == "START" ]; then
     for ((ndx=0; ndx < ${#_scriptstostart[@]}; ndx++)); do
-        script=$(echo ${_scriptstostart[$ndx]} | /bin/sed "s/'//g")
+        script=${_scriptstostart[$ndx]}
         logmessage "Starting ${script}"
-        ${script} &
+        $script &
     done
     exit 0
 fi
