@@ -1,10 +1,26 @@
 #!/bin/bash
 
-version=1.1
+version=1.2
 # periodically collects multiple statistics samples
-# based on blktrscript.sh
 
-# Version 1.1, October 2014 TKC
+# Version 1.2, November 2015 BEL
+# Added section to recombine what was intended to be passed as a multi word parameter
+#  When multiple words are passed within quotes on the command line they become a single parameter
+#  When this same string is passed from a calling script each word becomes a separate parameter
+#  The added code recombines the quoted string as a single parameter
+#  For example "a b c" d e when passed on the command line becomes $1=a b c, $2=d, $3=e
+#  When passed from another script these become $1="a, $2=b, $3=c", $4=d, $5=e
+#  The additional code fixes this so that the parameters are always received as intended
+# Corrected periodwaitsecs logic when there is no initial trace
+# Set period to 1 when initialtrace is false
+# Enhanced periodwaitsecs log messages
+# Added interval_duration and interval_count to pace the metrics commands
+# Updated stats file names to include period
+# Added -SM option to vmstat to display in 2^20 units to keep columns aligned
+# Cleaned up usage text and added _ after date to file names
+# Corrected log file name to spec
+
+# Version 1.1, October 2015 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
 # Fix stats binary logging to variable that evaluates to 'null'
@@ -12,11 +28,12 @@ version=1.1
 # Changes for readability
 
 # Version 1.0, August 2015 BEL
+# based on blktrscript.sh
 # Collects IO counts from /sys/block/$(basename $DEV)/stat
 # Collect iostat from selected drives
 # collect mpstat
 
-# Detemine directory of executable
+# Detemine directory of executable amd source common functions
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
@@ -29,28 +46,93 @@ if [[ ! -x ${IOSTAT_BIN} ]] || [[ ! -x ${MPSTAT_BIN} ]] || [[ ! -x ${VMSTAT_BIN}
     exit 1
 fi
 
-# Set parameters
-declare    device=$1 #device to sample
-declare -i runsecs=${2:-14400} #run time in seconds, entire period over which the script runs
-declare -i sampledwell=${3:-60} #duration of a single sample in seconds
-declare -i sampleperiodsecs=${4:-3600} #duration of a period within which sample sample is taken
-declare -i firstwaitsecs=${5:-120} #delay in seconds to first sample sample
-declare -i padsecs=${6:-30} #seconds from end of sample to end of sample period
-declare    sampledir=${7:-sampledir} #folder name for the samples, also helps organize samples
-declare    flname=$8 #file name uiniquiefier to include test case info and help identify sample
+declare -a _commandsave=($@)
+declare -a _params=($@)
+declare param
+declare -i shiftcnt=1
 
+# Determine if quoted parameter fixing may be required
+if [ $# -eq ${#_params[@]} ];then
+
+  # Get next parameter honoring quotes to recombine as necessary
+  getp()
+  {
+
+  #echo ${#_params[@]} ${_params[@]}
+  if [ ${#_params[@]} -eq 0 ];then param=;shiftcnt=0;return;else shiftcnt=1;fi
+  local -i ndx=0 match=0
+  param=${_params[0]};if [ ${param:0:1} == \" ];then match=1;param=${param:1};fi
+  #echo $param $match
+
+  while [ $match -gt 0 -a $ndx -le ${#_params[@]} ];do
+   par=${_params[$((++ndx))]};if [ ${par:${#par}-1:1} == \" ];then match=0;par=${par:0:${#par}-1};fi
+   param+=" $par" #;echo $ndx $param
+  done
+
+  shiftcnt=$((++ndx))
+  }
+
+  # Set parameters
+  _params=($@);getp
+  declare    device=$param  #device to trace
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare -i runsecs=${param:-14400} #run time in seconds, entire period over which the script runs
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare -i sampledwell=${param:-60} #duration of a single trace in seconds
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare -i sampleperiodsecs=${param:-3600} #duration of a period within which trace sample is taken
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare -i firstwaitsecs=${param:-120} #delay in seconds to first trace sample
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare -i padsecs=${param:-30} #seconds from end of trace to end of sample period
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare    sampledir=${param:-tracedir} #folder name for the traces, also helps organize traces
+  shift $shiftcnt;unset _params;_params=($@);getp
+  declare    flname=$param #file name uiniquiefier to include test case info and help identify trace
+
+else # No parameter adjustment needed
+
+# Set parameters
+  declare    device=$1 #device to sample
+  declare -i runsecs=${2:-14400} #run time in seconds, entire period over which the script runs
+  declare -i sampledwell=${3:-60} #duration of a single sample in seconds
+  declare -i sampleperiodsecs=${4:-3600} #duration of a period within which sample sample is taken
+  declare -i firstwaitsecs=${5:-120} #delay in seconds to first sample sample
+  declare -i padsecs=${6:-30} #seconds from end of sample to end of sample period
+  declare    sampledir=${7:-sampledir} #folder name for the samples, also helps organize samples
+  declare    flname=$8 #file name uiniquiefier to include test case info and help identify sample
+
+fi
+
+debug2() {
+echo "device=          $device"
+echo "runsecs=         $runsecs"
+echo "sampledwell=     $sampledwell"
+echo "sampleperiodsecs=$sampleperiodsecs"
+echo "firstwarisecs=   $firstwaitsecs"
+echo "padsecs=         $padsecs"
+echo "sampledir=       $sampledir"
+echo "flname=          $flname"
+}
+#debug2
+
+#Prepend _ to flname if not null
+if [ "x$flname" != "x" ]; then flname="_"$flname; fi
+
+#Setup parameters depending on period 0 being required
 if [ $firstwaitsecs -lt 0 ]; then
     firstwaitsecs=0
-    initialsample="FALSE"
     period=1
+    initialsample="FALSE"
 else
-    initialsample="TRUE"
     period=0
+    initialsample="TRUE"
 fi
 runperiods=$((runsecs/sampleperiodsecs))
+
+#Setup file names
 TESTdt=`date +%Y-%m-%d_%H-%M`
-logfile=$sampledir"/"$TESTdt"sample.log"
-outfile=$sampledir"/"$TESTdt$flname
+logfile=$sampledir/$TESTdt${flname}_sample.log
 
 usage()
 {
@@ -80,8 +162,8 @@ Input parameters...
                     to 3600 seconds (1 hour)
 
     initial_wait  - the delay prior to taking the first sample in the first
-                    period, defaults to 120 seconds. If initial_wait is -ve
-                    the initial first period sample will be skipped
+                    period, defaults to 120 seconds. If initial_wait is
+                    negative the initial first period sample will be skipped
 
     end_pad       - the time from the end of a sample to the end of a sample
                     period, defaults to 30 seconds
@@ -108,15 +190,17 @@ Example:
 
     $0 /dev/sdx 36000 1800 7200 60 30 DBsamples jobx
 
-This samples device /dev/sdx over the course of 10 hours with half hour samplesi
+This samples device /dev/sdx over the course of 10 hours with half hour samples
 taken every two hours.
 
 The first two hour period has the first sample taken 1 minute after starting
 the script.
 
-All five periods have a sample taken that completes a half minute prior to thei
-end of the period sample file names are placed in the folder named DBsamples i
-and include the string jobx in the file name.
+All five periods have a sample taken that completes a half minute prior to the
+end of the period.
+
+Sample file names are placed in the folder named DBsamples and include the
+string jobx in the file name.
 
 ==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=-=-
 EOT
@@ -133,46 +217,65 @@ trap_mesg()
 
 getstats()
 {
-    ${IOSTAT_BIN} -mtxy $device >> ${outfile}_iostat.txt
-    ${MPSTAT_BIN} -P ALL >> ${outfile}_mpstat.txt
-    ${VMSTAT_BIN} -t >> ${outfile}_vmstat.txt
+#Collects interval count samples from each stat with interval_duration between samples
+    tracedt=`date +%Y-%m-%d_%H-%M`
+    outfile=$sampledir"/"$tracedt$flname"_period"$((period++))"of${runperiods}"
+    logmessage "Logging to $outfile..."
+    local cnt=$interval_count
+    while [ $cnt -gt 0 ]; do
+        ${IOSTAT_BIN} -mtxy $device >> ${outfile}_iostat.txt
+        ${MPSTAT_BIN} -P ALL >> ${outfile}_mpstat.txt
+        ${VMSTAT_BIN} -t -SM >> ${outfile}_vmstat.txt
+        let $((cnt--))
+        _sleep $interval_duration
+    done
 }
 
-if [ $# -lt 1 ]; then usage; fi #Display usage if no parameters are given
+if [ ${#_commandsave[@]} -lt 1 ]; then usage; fi #Display usage if no parameters are given
 
 #Make folder for storing samples and log if not already existing
 if [ ! -d $sampledir ]; then mkdir -p $sampledir; fi
 
-#Prepend _ to flname if not null
-if [ "x$flname" != "x" ]; then flname="_"$flname; fi
-
 #Crate/Start log
 logcreate $logfile
 logstart $logfile
-logmessage "Command Line: $(readlink -fn $0) $@"
+logmessage "Command Line: $(readlink -fn $0) ${_commandsave[@]}"
 
-#Log parameters & folder
+#Log parameters
 logmessage "dwell $sampledwell, 1stwait $firstwaitsecs, period $sampleperiodsecs, pad $padsecs, periods $runperiods"
-logmessage "Logging to $outfile"
+
+#Calculate interval duration and count
+declare -i interval_duration=5 #seconds
+declare -i interval_count=$((sampledwell / interval_duration))
+if [ $sampledwell -lt $interval_duration ]; then
+    interval_duration=1
+    interval_count=1
+fi
 
 #Take first sample after firstwaitsecs
-if [ $initialsample == "TRUE" -a $runsecs -gt $((firstwaitsecs+sampledwell)) ]; then
-    logmessage "Sleeping for $firstwaitsecs before first sample."
+if [ $initialsample == "TRUE" -a $runsecs -ge $((firstwaitsecs+sampledwell)) ]; then
+    logmessage "Sleeping for $firstwaitsecs before first sample"
     _sleep $firstwaitsecs
     getstats
 fi
 
-if [ $runsecs -gt $((period-sampledwell)) ]; then
-    #Each successive sample ends padsecs seconds prior to the end of the period
+declare -i periodwaitsecs=-1
+if [ $initialsample == "TRUE" -a $runsecs -ge $((firstwaitsecs+sampledwell*2+padsecs)) ]; then
     periodwaitsecs=$((sampleperiodsecs-firstwaitsecs-sampledwell*2-padsecs))
-    logmessage "Sleeping for $periodwaitsecs before next sample."
+elif [ $initialsample == "FALSE" -a $runsecs -ge $((sampledwell-padsecs)) ]; then
+    periodwaitsecs=$((sampleperiodsecs-sampledwell-padsecs))
+fi
+if [ $periodwaitsecs -ge 0 ]; then
+    #Each successive sample ends padsecs seconds prior to the end of the period
+    logmessage "Sleeping for $periodwaitsecs before period $period sample"
     _sleep $periodwaitsecs
 
-    #Take sample at the end of each successive period
     while [ $runperiods -ge $period ]; do
         getstats
         if [ $runperiods -ge $period ]; then
-            _sleep $((sampleperiodsecs-sampledwell))
+            periodwaitsecs=$((sampleperiodsecs-sampledwell))
+            logmessage "Sleeping for $periodwaitsecs before period $period sample"
+            _sleep $periodwaitsecs
         fi
     done
 fi
