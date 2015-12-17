@@ -1,0 +1,40 @@
+#!/bin/sh
+
+bn=$(/bin/basename $0)
+dn=$(/usr/bin/dirname $0)
+lockfile=/var/lock/$bn
+pidfile=/var/run/$bn
+
+param1=$1
+param2=$2
+param3=$3
+
+cleanup_and_exit()
+{
+    echo "pid: $$ caught $1, exiting"
+    $dn/stxnodemetricsmanager.sh END $param1 $param2 $param3
+    /bin/rm $lockfile $runfile
+    exit
+}
+
+trap_and_ignore() {
+    echo "pid: $$ ignored $1"
+}
+
+trap_with_arg() {
+    func="$1" ; shift
+    for sig ; do
+        trap "$func $sig" "$sig"
+    done
+}
+
+trap_with_arg cleanup_and_exit SIGHUP
+trap_with_arg trap_and_ignore SIGINT SIGQUIT SIGABRT SIGALRM SIGTERM SIGCHLD SIGCONT SIGUSR1 SIGUSR2
+
+$dn/stxnodemetricsmanager.sh START $param1 $param2 $param3
+
+while :
+do
+    /bin/date +%s
+    /bin/sleep 5
+done
