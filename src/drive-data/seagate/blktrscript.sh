@@ -1,7 +1,10 @@
 #!/bin/bash
 
-version=1.3
+version=1.4
 # blktrscript.sh orchestrates taking blktrace/parse samples
+
+# Version 1.4, January 2016 BEL
+# Added gzip command to compress the blktrace file
 
 # Version 1.3, November 2015 BEL
 # Added section to recombine what was intended to be passed as a multi word parameter
@@ -37,6 +40,7 @@ source ${stxappdir}/common.sh
 
 declare BLKTRACE_BIN=$(which blktrace)
 declare BLKPARSE_BIN=$(which blkparse)
+declare GZIP_BIN=$(which gzip)
 
 if [[ ! -x ${BLKTRACE_BIN} ]] || [[ ! -x ${BLKPARSE_BIN} ]]; then
     echo "$(basename $0) cannot run without blktrace and blkparse"
@@ -284,6 +288,7 @@ gettrace()
          dev=$(basename $drive)
         ${stxappdir}/btconvert.sh $outfile $partfile - DC $dev
     done
+    ${GZIP_BIN} $outfile
 }
 
 if [ ${#_commandsave[@]} -lt 1 ]; then usage; fi #Display usage if no parameters are given
