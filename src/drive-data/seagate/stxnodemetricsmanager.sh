@@ -123,15 +123,17 @@ if [ $func == "END" ]; then
         declare -i maxattempts=10 attempts=0
         for (( attempts=0; attempts < maxattempts; attempts++ )); do
             #ps -ef output format - UID        PID  PPID  C STIME TTY          TIME CMD
-            pid=`ps -ef | gawk '{if ($9 == "'$command'") print $2}'` #CMD will be /bin/bash, so command is $9
+            pid=`/bin/ps -ef | $AWKBIN '{if ($9 == "'$command'") print $2}'` #CMD will be /bin/bash, so command is $9
             if [ "X$pid" != "X" ]; then
-                kill -SIGUSR1 $pid
+                /bin/kill -SIGUSR1 $pid
             else break
             fi
             _sleep 1
         done
         if [ $attempts -ge $maxattempts ]; then
             logmessage "Unable to stop $command in $maxattempts seconds"
+            logmessage "Attempting hard kill of children of $command ($pid)"
+            /usr/bin/pkill -KILL -P $pid
         else
             logmessage "Stopped $command in $attempts seconds"
         fi
