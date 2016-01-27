@@ -8,7 +8,7 @@ else
     LOGCMD="${stxappdir}/SeaDragon_LogsUtil_310_Private_32"
     SEACHEST="${stxappdir}/SeaChest32"
 fi
-declare AWKBIN=$(which awk)
+declare AWKBIN=$(/usr/bin/which awk)
 
 logcreate()
 {

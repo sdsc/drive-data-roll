@@ -1,4 +1,4 @@
-#!/bin/bash
+#/bin/bash
 
 version=1.4
 # blktrscript.sh orchestrates taking blktrace/parse samples
@@ -38,9 +38,9 @@ version=1.4
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
-declare BLKTRACE_BIN=$(which blktrace)
-declare BLKPARSE_BIN=$(which blkparse)
-declare GZIP_BIN=$(which gzip)
+declare BLKTRACE_BIN=$(/usr/bin/which blktrace)
+declare BLKPARSE_BIN=$(/usr/bin/which blkparse)
+declare GZIP_BIN=$(/usr/bin/which gzip)
 
 if [[ ! -x ${BLKTRACE_BIN} ]] || [[ ! -x ${BLKPARSE_BIN} ]]; then
     echo "$(basename $0) cannot run without blktrace and blkparse"

@@ -37,9 +37,9 @@ version=1.2
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
-declare IOSTAT_BIN=$(which iostat)
-declare MPSTAT_BIN=$(which mpstat)
-declare VMSTAT_BIN=$(which vmstat)
+declare IOSTAT_BIN=$(/usr/bin/which iostat)
+declare MPSTAT_BIN=$(/usr/bin/which mpstat)
+declare VMSTAT_BIN=$(/usr/bin/which vmstat)
 
 if [[ ! -x ${IOSTAT_BIN} ]] || [[ ! -x ${MPSTAT_BIN} ]] || [[ ! -x ${VMSTAT_BIN} ]]; then
     echo "$(basename $0) cannot run without iostat, mpstat and vmstat"
