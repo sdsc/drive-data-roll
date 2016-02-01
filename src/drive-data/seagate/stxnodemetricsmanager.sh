@@ -1,7 +1,12 @@
 #!/bin/bash
 
-version=0.66
+version=0.7
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
+
+# Version 0.7, January 2016 BEL
+# Added call to smartscript.sh in scriptstostart and scriptsatend
+# Removed extra / from the basefolder string
+# Added check for no drives found and exit with status 2
 
 # Version 0.66, November 2015 BEL
 # Added basefolder to define the base location for collected files and moved log to this folder
@@ -26,6 +31,8 @@ version=0.66
 # The Start function kicks off time-based scripts in their own threads
 # The End function terminates any running time-based scripts and starts job-end scripts
 # Logs activity to log file
+
+# Exit status 0 for good, 1 for parameter error, 2 for no drives found
 
 set -e
 
@@ -52,7 +59,7 @@ declare -i padsecs=0 #seconds from end of trace to end of sample period
 #Build folder name
 declare TESTdt=`date +%Y-%m-%d_%H-%M`
 declare filebase="${appname}_${jobid}_$(hostname -s)"
-declare basefolder="/scratch/drive-data/"
+declare basefolder="/scratch/drive-data"
 declare folder="$basefolder/$appname/${appname}_$jobid/$filebase"
 declare logfile="$basefolder/$(hostname -s).log"
 
@@ -72,8 +79,10 @@ logmessage "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
 #SEAGATE   /dev/sg4  ST800FM0043             0056ed22               4.30
 declare ITDRVS=`$SEACHEST -s |grep "INTEL SSDSC2BB160G4R"   |tr -s ' '|cut -d" " -f2`
 declare SGDRVS=`$SEACHEST -s |grep "ST[0-9]00FM"   |tr -s ' '|cut -d" " -f2`
+#declare SGDRVS=`$SEACHEST -s |grep "ST[3,8]00[F,M]M"   |tr -s ' '|cut -d" " -f2` #for debug
 declare -a _drives=($ITDRVS $SGDRVS)
 logmessage "${#_drives[@]} drives found"
+if [ ${#_drives[@]} -eq 0 ];then logmessage "Exiting due to no drives found";exit 2;fi
 
 #Convert SCSI generic list, /dev/sgx, to block device list, /dev/sdy
 for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
@@ -94,12 +103,15 @@ done
 #Define scripts and their parameters
 #Array for scripts to run at start. Can be added to. Run in their own thread.
 declare -a _scriptstostart=(\
+"${stxappdir}/smartscript.sh $folder $filebase" \
 "${stxappdir}/blktrscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase" \
 "${stxappdir}/statsscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase"\
 )
 
 #Array for scripts to run at end. Can be added to. Run sequentially in this thread.
-declare -a _scriptsatend=("${stxappdir}/stxsm2.sh $folder $filebase")
+declare -a _scriptsatend=(\
+"${stxappdir}/smartscript.sh $folder $filebase" \
+"${stxappdir}/stxsm2.sh $folder $filebase")
 
 #Kick off sampling scripts in separate threads and return
 if [ $func == "START" ]; then

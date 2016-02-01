@@ -1,7 +1,10 @@
 #/bin/bash
 
-version=1.4
+version=1.5
 # blktrscript.sh orchestrates taking blktrace/parse samples
+
+# Version 1.5, January 2016 BEL
+# Updated parameter parsing so it can handle a single parameter in quotes ie "/dev/sdc"
 
 # Version 1.4, January 2016 BEL
 # Added gzip command to compress the blktrace file
@@ -71,15 +74,15 @@ if [ $# -eq ${#_params[@]} ];then
   #echo ${#_params[@]} ${_params[@]}
   if [ ${#_params[@]} -eq 0 ];then param=;shiftcnt=0;return;else shiftcnt=1;fi
   local -i ndx=0 match=0
-  param=${_params[0]};if [ ${param:0:1} == \" ];then match=1;param=${param:1};fi
+  param=${_params[0]};if [ ${param:0:1} == \" ];then match=1;_params[0]=${_params[0]:1};param=;fi
   #echo $param $match
 
-  while [ $match -gt 0 -a $ndx -le ${#_params[@]} ];do
-   par=${_params[$((++ndx))]};if [ ${par:${#par}-1:1} == \" ];then match=0;par=${par:0:${#par}-1};fi
+  while [ $match -gt 0 -a $ndx -lt ${#_params[@]} ];do
+   par=${_params[$((ndx++))]};if [ ${par:${#par}-1:1} == \" ];then match=0;par=${par:0:${#par}-1};fi
    param+=" $par" #;echo $ndx $param
+   shiftcnt=$ndx
   done
 
-  shiftcnt=$((++ndx))
   }
 
   # Set parameters
