@@ -21,6 +21,6 @@ DRVS=`$SEACHEST -s | grep /dev | tr -s ' ' | cut -d" " -f2`
 LOGFILE="$archivedir/${archivename}_smartctl.log"
 for DRV in $DRVS ; do
 	echo "# smartctl -a $DRV -----------------" >> $LOGFILE
-	smartctl -a $DRV >> $LOGFILE
+	/usr/sbin/smartctl -a $DRV >> $LOGFILE
 done
 
