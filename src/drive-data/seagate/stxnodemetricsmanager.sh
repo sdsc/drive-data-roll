@@ -1,7 +1,11 @@
 #!/bin/bash
 
-version=0.7
+version=0.71
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
+
+# Version 0.71, February 2016 BEL
+# statsscript.sh has been broken into three scripts iostatscript.sh, mpstatscript.sh and vmstatscript.sh
+# calls to these scripts updated in scriptstostart
 
 # Version 0.7, January 2016 BEL
 # Added call to smartscript.sh in scriptstostart and scriptsatend
@@ -105,7 +109,9 @@ done
 declare -a _scriptstostart=(\
 "${stxappdir}/smartscript.sh $folder $filebase" \
 "${stxappdir}/blktrscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase" \
-"${stxappdir}/statsscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase"\
+"${stxappdir}/iostatscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase" \
+"${stxappdir}/mpstatscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase" \
+"${stxappdir}/vmstatscript.sh \"${_drives[@]}\" $runsecs $tracedwell $sampleperiodsecs $firstwaitsecs $padsecs $folder $filebase"\
 )
 
 #Array for scripts to run at end. Can be added to. Run sequentially in this thread.
