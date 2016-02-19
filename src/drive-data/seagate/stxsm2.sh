@@ -1,6 +1,9 @@
 #!/bin/bash
 
-version=0.2
+version=0.3
+
+# Version 0.3, February 2016 BEL
+# Added a log file and redirected the command output to the log
 
 # Version 0.2, November 2015 BEL
 # Corrected archive file path construction and added conditional mkdir
@@ -17,6 +20,7 @@ archivedir=$1
 if [ ! -d $archivedir ];then mkdir -p $archivedir;fi
 TESTdt=`date +%Y-%m-%d_%H-%M`
 archivename="${TESTdt}_$2"
+LOGFILE="$archivedir/${archivename}_stxsm2.log"
 
 #Determine directory of executable
 declare stxappdir=$(dirname $0)
@@ -25,7 +29,8 @@ source ${stxappdir}/common.sh
 DRVS=`$SEACHEST -s |grep "ST[0-9]00FM"   |tr -s ' '|cut -d" " -f2`
 for DRV in $DRVS ; do
 	#$LOGCMD --sm2 --triggerUDS --uds -d $DRV
-	$LOGCMD --sm2  -d $DRV
+	echo "$(date --rfc-3339=seconds) #####----------------- $(basename $0) -sm2 -d $DRV -----------------#####" >> $LOGFILE
+	$LOGCMD --sm2  -d $DRV  >> $LOGFILE
 	echo ""
 done
 #Changed file-name structure below BEL
@@ -41,3 +46,4 @@ tar -czf $LOGZIPFILE  *.SM2 && rm -f *.SM2
 #mv *.SM2 /tmp
 #echo ""
 #echo "Send file $LOGZIPFILE to Seagate"
+echo "$(date --rfc-3339=seconds) ===== $(basename $0) Done =====" >> $LOGFILE

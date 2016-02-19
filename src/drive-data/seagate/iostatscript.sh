@@ -1,7 +1,11 @@
 #!/bin/bash
 
-version=1.3
-# periodically collects multiple statistics samples
+version=1.0
+# periodically collects iostat samples
+
+# Version 1.0, February 2016, based on statsscript.sh v1.3
+# Samples only iostat and uses the iostat interval and count parameters vs looping count X delay
+# Prepended log messages with script name to make them identifiable in a common log file
 
 # Version 1.3, January 2016 BEL
 # Updated parameter parsing so it can handle a single parameter in quotes ie "/dev/sdc"
@@ -222,16 +226,16 @@ getstats()
 {
 #Collects interval count samples from each stat with interval_duration between samples
     tracedt=`date +%Y-%m-%d_%H-%M`
-    outfile=$sampledir"/"$tracedt$flname"_period"$((period++))"of${runperiods}"
-    logmessage "Logging to $outfile..."
-    local cnt=$interval_count
-    while [ $cnt -gt 0 ]; do
-        ${IOSTAT_BIN} -mtxy $device >> ${outfile}_iostat.txt
-        ${MPSTAT_BIN} -P ALL >> ${outfile}_mpstat.txt
-        ${VMSTAT_BIN} -t -SM >> ${outfile}_vmstat.txt
-        let $((cnt--))
-        _sleep $interval_duration
-    done
+    outfile=$sampledir"/"$tracedt$flname"_period"$((period++))"of${runperiods}_iostat.txt"
+    logmessage "$(basename $0), Logging to $outfile"
+#    local cnt=$interval_count
+#    while [ $cnt -gt 0 ]; do
+        ${IOSTAT_BIN} -mtxy $device $interval_duration $interval_count >> $outfile
+#        ${MPSTAT_BIN} -P ALL >> ${outfile}_mpstat.txt
+#        ${VMSTAT_BIN} -t -SM >> ${outfile}_vmstat.txt
+#        let $((cnt--))
+#        _sleep $interval_duration
+#    done
 }
 
 if [ ${#_commandsave[@]} -lt 1 ]; then usage; fi #Display usage if no parameters are given
@@ -242,10 +246,10 @@ if [ ! -d $sampledir ]; then mkdir -p $sampledir; fi
 #Crate/Start log
 logcreate $logfile
 logstart $logfile
-logmessage "Command Line: $(readlink -fn $0) ${_commandsave[@]}"
+logmessage "$(basename $0), Command Line: $(readlink -fn $0) ${_commandsave[@]}"
 
 #Log parameters
-logmessage "dwell $sampledwell, 1stwait $firstwaitsecs, period $sampleperiodsecs, pad $padsecs, periods $runperiods"
+logmessage "$(basename $0), dwell $sampledwell, 1stwait $firstwaitsecs, period $sampleperiodsecs, pad $padsecs, periods $runperiods"
 
 #Calculate interval duration and count
 declare -i interval_duration=5 #seconds
@@ -257,7 +261,7 @@ fi
 
 #Take first sample after firstwaitsecs
 if [ $initialsample == "TRUE" -a $runsecs -ge $((firstwaitsecs+sampledwell)) ]; then
-    logmessage "Sleeping for $firstwaitsecs before first sample"
+    logmessage "$(basename $0), Sleeping for $firstwaitsecs before first sample"
     _sleep $firstwaitsecs
     getstats
 fi
@@ -270,19 +274,19 @@ elif [ $initialsample == "FALSE" -a $runsecs -ge $((sampledwell-padsecs)) ]; the
 fi
 if [ $periodwaitsecs -ge 0 ]; then
     #Each successive sample ends padsecs seconds prior to the end of the period
-    logmessage "Sleeping for $periodwaitsecs before period $period sample"
+    logmessage "$(basename $0), Sleeping for $periodwaitsecs before period $period sample"
     _sleep $periodwaitsecs
 
     while [ $runperiods -ge $period ]; do
         getstats
         if [ $runperiods -ge $period ]; then
             periodwaitsecs=$((sampleperiodsecs-sampledwell))
-            logmessage "Sleeping for $periodwaitsecs before period $period sample"
+            logmessage "$(basename $0), Sleeping for $periodwaitsecs before period $period sample"
             _sleep $periodwaitsecs
         fi
     done
 fi
-logmessage "Done"
+logmessage "$(basename $0), Done"
 
 exit 0
 
