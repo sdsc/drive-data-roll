@@ -1,0 +1,344 @@
+#!/bin/sh
+#
+# This script will kill any user processes on a node when the last
+# SLURM job there ends. For example, if a user directly logs into
+# an allocated node SLURM will not kill that process without this
+# script being executed as an epilog.
+#
+
+LOGGER=/usr/bin/logger
+
+SLURM_BIN=/usr/bin
+SLURM_SCONTROL=${SLURM_BIN}/scontrol
+SLURM_SINFO=${SLURM_BIN}/sinfo
+SLURM_SQUEUE=${SLURM_BIN}/squeue
+
+this_host=$(/bin/hostname -s)
+TRACKING_DIR=/var/spool/slurmd/job_tracking/${SLURM_JOB_USER}
+
+unhealthy=0
+reason=""
+
+if [ x$SLURM_UID = "x" ] ; then 
+	exit 0
+fi
+if [ x$SLURM_JOB_ID = "x" ] ; then 
+        exit 0
+fi
+
+function check_status(){
+    # $1 = expected value
+    # $2 = status
+    # $3 = message if different
+    # Offline node if any checks fail and exit
+
+    if [[ $1 != $2 ]] ; then
+        if [[ $unhealthy -eq 0 ]] ; then
+            unhealthy=1
+            prev_reason=$(${SLURM_SINFO} -o '%E' -hn ${this_host} | sed -e 's/^none$//')
+            if [[ ${#prev_reason} -gt 0 ]] ; then
+                reason="$prev_reason"
+            fi
+        fi
+        new_reason="$3;"
+        # append new reason if it isn't already inside reason
+        if [[ "$reason" != *$new_reason* ]] ; then
+            reason="$reason$new_reason"
+        fi
+    fi
+}
+
+function exit_epilog(){
+    # Remove the environment tracking file for this job
+    if [[ -f ${TRACKING_DIR}/${SLURM_JOB_ID}/environment ]]; then
+        /bin/rm ${TRACKING_DIR}/${SLURM_JOB_ID}/environment
+    fi
+
+    # Remove the job tracking directory for this job
+    /bin/rmdir ${TRACKING_DIR}/${SLURM_JOB_ID}
+
+    # Remove the job tracking directory for this user
+    /bin/rmdir --ignore-fail-on-non-empty "${TRACKING_DIR}"
+
+    ${LOGGER} -p local0.alert "******** finished $0 for job $SLURM_JOB_ID"
+    exit $1
+}
+
+function offline_node(){
+    ${SLURM_SCONTROL} update nodename=${this_host} state=fail reason="${reason}";
+    ${LOGGER} -p local0.alert "Node offlined by $0. reason=\"${reason}\""
+    if [[ ${SLURM_JOB_PARTITION} == "virt" ]] ; then
+        ${LOGGER} -p local0.warning -t nucleus-slurm "Node offlined by $0. reason=\"${reason}\""
+    fi
+    exit_epilog 1
+}
+
+function user_cleanup(){
+    # Called at end of last job by user to:
+    #  * killall PIDs
+    #  * shared memory segments
+    #  * semaphore arrays
+    #  * message queues
+    #  * remove /dev/shm files
+    #  * remove /tmp files
+
+    ${LOGGER} -p local0.alert "Starting user_cleanup() for ${SLURM_JOB_USER} from ${SLURM_JOB_ID}"
+
+    # Give stuff a chance to cleanup
+    /usr/bin/killall -u ${SLURM_JOB_USER}
+
+    # kill leftover allocated semaphores
+    for S in $(/usr/bin/ipcs -s | /bin/grep "${SLURM_JOB_USER}" | /bin/awk '{print $2}') ; do
+        /usr/bin/ipcrm -s $S
+    done
+
+    # kill leftover allocated shared memory
+    for M in $(/usr/bin/ipcs -m "${SLURM_JOB_USER}" | /bin/grep -v key | /bin/awk '{print $2}') ; do
+        /usr/bin/ipcrm -m $M
+    done
+
+    # kill leftover allocated message queues
+    for Q in $(/usr/bin/ipcs -q "${SLURM_JOB_USER}" | /bin/grep -v key | /bin/awk '{print $2}') ; do
+        /usr/bin/ipcrm -q $Q
+    done
+
+    # Left Over processes that do not kill
+    LO=$(/bin/ps -u ${SLURM_JOB_USER} -o "pid=")
+    # wait a little while and check again
+    if [[ -n "$LO" ]] ; then
+        /bin/sleep 20
+        /usr/bin/killall -9 -u ${SLURM_JOB_USER}
+        /bin/sleep 10
+    fi
+
+    hung_pids=$(/bin/ps -u ${SLURM_JOB_USER} -o "pid=")
+    if [[ -n "$hung_pids" ]] ; then
+        for i in $hung_pids ; do
+            ${LOGGER} -p local0.alert "Leftover PID $i from SLURM_JOBID ${SLURM_JOBID}"
+        done
+        # Force node offline
+        check_status 0 1 "EPILOG: Leftover process for ${SLURM_JOB_USER} from ${SLURM_JOBID}"
+    fi
+
+    # Remove any files the user created in /tmp
+    # Don't recurse to remove directories, only remove files
+    /bin/find /tmp -user ${SLURM_JOB_USER} -type 'f' -print0 | /usr/bin/xargs -0 -r /bin/rm -f
+
+    # Remove any files the user created in /dev/shm
+    # Don't recurse to remove directories, only remove files
+    /bin/find /dev/shm -user ${SLURM_JOB_USER} -type 'f' -print0 | /usr/bin/xargs -0 -r /bin/rm -f
+
+    ${LOGGER} -p local0.alert "Finished user_cleanup() for ${SLURM_JOB_USER} from ${SLURM_JOB_ID}"
+}
+
+export COMPUTESET_JOB_STAGE='EPILOG'
+export NOTIFY_SCRIPT=/home/dimm/code/nucleus-service/nucleus_service/computeset_job_notify.sh
+notify()
+{
+    export COMPUTESET_JOB_STATE="$1"
+    ${NOTIFY_SCRIPT}
+}
+
+#=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+${LOGGER} -p local0.alert "********  starting $0 for job $SLURM_JOB_ID"
+
+# SLURM_JOB_PARTITION is NOT defined in the EPILOG environment!!!
+# This is a hack but is much easier at this point than a SPANK plugin just
+# to set this one ENV var...
+#export SLURM_JOB_PARTITION=$(/usr/bin/scontrol show job ${SLURM_JOB_ID} | /usr/bin/tr -s ' ' '\n' | /bin/awk -F= '/Partition/ {print $2}')
+#export SLURM_JOB_NAME=$(/usr/bin/scontrol show job ${SLURM_JOB_ID} | /usr/bin/tr -s ' ' '\n' | /bin/awk -F= '/Name/ {print $2}')
+ENV_TRACKING_FILE=${TRACKING_DIR}/${SLURM_JOB_ID}/environment
+export SLURM_JOB_PARTITION=$(/bin/awk -F= '/SLURM_JOB_PARTITION/ {print $2}' ${ENV_TRACKING_FILE})
+export SLURM_JOB_NAME=$(/bin/awk -F= '/SLURM_JOB_NAME/ {print $2}' ${ENV_TRACKING_FILE})
+
+/usr/bin/printenv | /bin/egrep "^SLURM" | /bin/sort > /tmp/EPILOG_SLURM.env
+
+#
+# Don't try to kill user root or system daemon jobs
+#
+if [ $SLURM_UID -lt 100 ] ; then
+	exit 0
+fi
+
+
+if [[ $SLURM_JOB_PARTITION == "compute " || $SLURM_JOB_PARTITION == "gpu" ]] ; then
+    # Make sure access.conf is clean after exlusive jobs run
+    /bin/echo '-:ALL EXCEPT root (wheel) (xsede-admin):ALL' > /etc/security/access.conf
+    user_cleanup
+
+    #Drop caches on exclusive use jobs
+    /bin/sync
+    /bin/echo 3 > /proc/sys/vm/drop_caches
+else
+    # Only remove first instance of user from access.conf on shared jobs
+    ACCESS_CONF=/etc/security/access.conf
+    ACCESS_CONF_LOCK_FILE=/var/lock/access.conf.lock
+    (
+        /usr/bin/flock -x 200
+        rval=$?
+        if [ 0 -ne $rval ]
+        then
+            exit_epilog $rval
+        else
+            /bin/sed -i "s/ ${SLURM_JOB_USER}//1" ${ACCESS_CONF}
+        fi
+    ) 200>${ACCESS_CONF_LOCK_FILE}
+
+    # Check for other jobs before cleaning up user activity (race condition possible)
+    other_jobs=$(/bin/find ${TRACKING_DIR} -mindepth 1 -type d -printf "%f\n" | /bin/egrep -v ${SLURM_JOB_ID} | /usr/bin/tr '\n' ' ')
+
+    ${LOGGER} -p local0.alert "other jobs for ${SLURM_JOB_USER}... ${other_jobs}"
+    if [[ -z "${other_jobs}" ]] ; then
+        user_cleanup
+    fi
+fi
+
+#
+# Record current /scratch usage
+#
+block_usage=$(/bin/df -B 1024 /scratch | /bin/grep scratch)
+inode_usage=$(/bin/df -i /scratch | /bin/grep scratch)
+${LOGGER} -p local0.alert "sdsc_stats job end $SLURM_JOB_ID $SLURM_JOB_USER local scratch block usage ${block_usage}"
+${LOGGER} -p local0.alert "sdsc_stats job end $SLURM_JOB_ID $SLURM_JOB_USER local scratch inode usage ${inode_usage}"
+
+#
+# Remove local per job scratch space
+#
+/bin/rm -rf /scratch/${SLURM_JOB_USER}/${SLURM_JOB_ID}
+check_status 0 $? "Cannot remove local scratch space"
+
+#
+# Run slurm.health_check on job exit
+#
+#/usr/bin/timeout -s KILL 5s /etc/slurm/slurm.health_check
+#shc_ret=$?
+#prev_note=$(${SLURM_SINFO} -o '%E' -hn ${this_host})
+#if [[ "$shc_ret" -eq 124 ]] ; then
+#  msg="********  TIMEOUT  /etc/slurm/slurm.health_check at $(date)"
+#  ${LOGGER} -p local0.alert "$msg"
+#  prev_note="$prev_note; $msg"
+#fi
+#check_status 0 $shc_ret "$prev_note"
+
+#
+# Down node if any epilog checks fail...
+#
+if [[ "$unhealthy" -ne 0 ]] ; then
+    offline_node
+fi
+
+# Clean up /tmp
+# Get rid of all ordinary files in the /tmp directory older than 168h (7 days)
+# and not accessed or modified in the past 168 hours.
+/usr/bin/find /tmp -xdev -atime +8 -mtime +8 -type 'f' -print0 | /usr/bin/xargs -0 -r /bin/rm -f
+
+# Clean up /dev/shm
+# Get rid of all ordinary files in the /dev/shm directory older than 168h (7 days)
+# and not accessed or modified in the past 168 hours.
+/usr/bin/find /dev/shm -xdev -atime +8 -mtime +8 -type 'f' -print0 | /usr/bin/xargs -0 -r /bin/rm -f
+
+#/opt/tacc_statsd/taccstats end $SLURM_JOB_ID > /dev/null 2>&1
+
+# Shutdown seagate monitoring...
+/usr/bin/test -x /opt/seagate/stxdaemon
+if [[ $? -eq 0 ]]; then
+  /usr/bin/pkill -HUP -f stxdaemon
+fi
+
+if [[ ${SLURM_JOB_PARTITION} == "virt" ]] ; then
+    ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Starting virt cleanup for JobID:${SLURM_JOB_ID}"
+
+    # Shutdown running domain here...
+    running_domain=$(/usr/bin/virsh list | /bin/awk '/running/ {print $2}')
+    if [[ $running_domain == vm* ]]
+    then
+        ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Shutting down $running_domain for JobID:${SLURM_JOB_ID}"
+        /usr/bin/virsh shutdown $running_domain > /dev/null 2>&1
+        if [[ $? -ne 0 ]]
+        then
+            ${LOGGER} -p local0.error -t nucleus-slurm -i "EPILOG: Unable to shutdown $running_domain for JobID:${SLURM_JOB_ID}"
+        fi
+    fi
+
+    # Give running domain some time to shutdown gracefully before getting out the hammer...
+    duration=60
+    sleeptime=15
+    running_domain=$(/usr/bin/virsh list | /bin/awk '/running/ {print $2}')
+    while [[ $? -eq 0 ]];
+    do
+        ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Waiting for domain $running_domain to shutdown..."
+        /bin/sleep $sleeptime
+
+        # Don't wait forever...
+        duration=$(( $duration - $sleeptime ))
+        if (( $duration <= 0 ))
+        then
+            ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Destroying $running_domain for JobID:${SLURM_JOB_ID}"
+            /usr/bin/virsh destroy $running_domain > /dev/null 2>&1
+            if [[ $? -ne 0 ]]
+            then
+                ${LOGGER} -p local0.error -t nucleus-slurm -i "EPILOG: Unable to destroy $running_domain for JobID:${SLURM_JOB_ID}"
+            fi
+            break
+        fi
+        /usr/bin/virsh list | /bin/egrep -q 'running'
+    done
+
+    # A few more seconds to shutdown...
+    sleep 10
+
+    # Take care of 'leftover' domains including a domain that is not running above but cannot
+    # be undefined because it is in a 'transitional' state
+    all_domains=$(/usr/bin/virsh list --all | /bin/awk '/vm/ {print $2}')
+    for domain in $all_domains
+    do
+        if [[ $domain == vm* ]]
+        then
+            ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Undefining leftover domain $domain"
+            /usr/bin/virsh undefine $domain > /dev/null 2>&1
+	    ret=$?
+	    if [[ $ret -ne 0 ]]
+            then
+                ${LOGGER} -p local0.error -t nucleus-slurm -i "EPILOG: Unable to undefine leftover domain $domain"
+                ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Destroying leftover domain $domain"
+                /usr/bin/virsh destroy $domain > /dev/null 2>&1
+                if [[ $? -ne 0 ]]; then
+                    ${LOGGER} -p local0.error -t nucleus-slurm -i "EPILOG: Unable to destroy leftover domain $domain"
+                fi
+            fi
+        fi
+    done
+
+    # Wait for sync-back to complete...
+    /sbin/zfs list -r scratch/${running_domain}-vol
+    while [[ $? -eq 0 ]]
+    do
+        ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Waiting for ZFS sync for domain $running_domain to complete..."
+        /bin/sleep 30
+        /sbin/zfs list -r scratch/${running_domain}-vol
+    done
+
+    notify 'completed'
+    ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Finished virt cleanup for JobID:${SLURM_JOB_ID}"
+
+    # Reboot node if memory is too fragmented to start a new VM quickly...
+    rebootFlag=0
+    mems=$(/bin/grep "Normal" /proc/buddyinfo | /usr/bin/tr -s ' ' ':' | /bin/cut -d: -f15)
+    for mem in $mems
+    do
+        if $(( $mem < 15000 ))
+        then
+            ${LOGGER} -p local0.info -t nucleus.slurm -i "EPILOG: Memory fragmentation high, flagging physical node for reboot"
+            rebootFlag=1
+        fi
+    done
+
+    if [[ $rebootFlag -eq 1 ]]
+    then
+        ${LOGGER} -p local0.info -t nucleus-slurm -i "EPILOG: Scheduling node for reboot"
+        /usr/bin/scontrol reboot_nodes ${SLURMD_NODENAME}
+    fi
+fi
+
+exit_epilog 0
