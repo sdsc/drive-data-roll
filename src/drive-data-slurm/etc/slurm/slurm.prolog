@@ -46,6 +46,26 @@ function notify(){
     ${NOTIFY_SCRIPT}
 }
 
+function dhmsToSecs() {
+
+    declare i secs=0
+
+    IFS=$'-:'
+    declare a _dhms=($@)
+
+    if [[ ${#_dhms[@]} -eq 4 ]]; then
+        secs=$(((${_dhms[0]}*86400)+(${_dhms[1]}*3600)+(${_dhms[2]}*60)+${_dhms[3]}))
+    elif [[ ${#_dhms[@]} -eq 3 ]]; then
+        secs=$(((${_dhms[0]}*3600)+(${_dhms[1]}*60)+${_dhms[2]}))
+    elif [[ ${#_dhms[@]} -eq 2 ]]; then
+        secs=$(((${_dhms[0]}*60)+${_dhms[1]}))
+    else
+        secs=$((${_dhms[0]}))
+    fi
+    echo $secs
+    unset IFS
+}
+
 function check_status(){
     # $1 = expected value
     # $2 = status
