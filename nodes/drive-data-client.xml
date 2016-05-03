@@ -12,6 +12,7 @@
 	All rights reserved. Rocks(r) v6.1.1 www.rocksclusters.org
 	</copyright>
 
+	<package>blktrace</package>
 	<package>sdsc-seagate-public</package>
 	<package>sdsc-seagate-private</package>
 
