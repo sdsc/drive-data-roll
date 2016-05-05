@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 version=1.5
 # blktrscript.sh orchestrates taking blktrace/parse samples
