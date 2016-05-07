@@ -19,11 +19,11 @@ TRACKING_DIR=/var/spool/slurmd/job_tracking/${SLURM_JOB_USER}
 unhealthy=0
 reason=""
 
-if [ x$SLURM_UID = "x" ] ; then 
-	exit 0
+if [ x$SLURM_UID = "x" ] ; then
+    exit 0
 fi
-if [ x$SLURM_JOB_ID = "x" ] ; then 
-        exit 0
+if [ x$SLURM_JOB_ID = "x" ] ; then
+    exit 0
 fi
 
 function check_status(){
@@ -158,7 +158,7 @@ export SLURM_JOB_NAME=$(/bin/awk -F= '/SLURM_JOB_NAME/ {print $2}' ${ENV_TRACKIN
 # Don't try to kill user root or system daemon jobs
 #
 if [ $SLURM_UID -lt 100 ] ; then
-	exit 0
+    exit 0
 fi
 
 
