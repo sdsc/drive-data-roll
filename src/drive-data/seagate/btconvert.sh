@@ -1,6 +1,9 @@
 #!/bin/bash
 
-version=1.3
+version=2.0
+# Version 2.0, May 2016 BEL
+# Added logging and error checking
+
 # Version 1.3, October 2014 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
@@ -26,7 +29,7 @@ version=1.3
 # Output is csv and contains DeviceName,SequenceNum,TimeStamp(sec),Action,Operation,StartBlock,NumOfBlocks
 #
 #
-# Detemine directory of executable and source common functions
+# Determine directory of executable and source common functions
 declare stxappdir=`dirname $0`
 source ${stxappdir}/common.sh
 
@@ -47,9 +50,7 @@ must be included when any parameter further right is included.
 
 Input parameters...
 
-    blk_parse_file - blkparse output file to be converted. Output file will be
-                     named as - blk_parse_file + output_file_ID +
-                     action_filter + device_filter + $outputext
+    blk_parse_file - blkparse output file to be converted.
 
     partition_file - allows mapping device major,minor in the trace file to
                      device names. The partition file can be obtained with...
@@ -59,6 +60,8 @@ Input parameters...
                      ...and must come from the same system the trace came from
 
     output_file_ID - optional, use - as a place holder if necessary
+                     Output file will be named as - blk_parse_file +
+                     output_file_ID + action_filter + device_filter + $outputext
 
     action_codes   - optional, action_codes for filtering are optional and can
                      be combined (no spaces), default is CQ.
@@ -85,6 +88,7 @@ outputext="-btc.csv"
 #Verify blk_parse file exists
 if [ ! -f $blkfile ]; then
     echo -e "\n ##>> blk_parse file $blkfile not found\n"
+    echo " ##>> blk_parse file $blkfile not found" 1> /dev/stderr
     usage
     exit 1
 fi
@@ -92,9 +96,16 @@ fi
 #Verify partition file exists
 if [ ! -f $prtfile ]; then
     echo -e "\n ##>> partition file $prtfile not found\n"
+    echo " ##>> partition file $blkfile not found" 1> /dev/stderr
     usage
     exit 1
 fi
+
+#Build logfile path/name
+outdir=$(dirname $blkfile)
+logfile=$outdir/`echo $(basename $blkfile) | ${AWKBIN} '{ print substr( $0, 1, index($0, "_period")) }'`trace.log
+logmessage "$(readlink -fn $0) version $version"
+logmessage "Command Line: $(readlink -fn $0) $@"
 
 # Build device mapping tables
 declare -A _devmmname  #indexed by major,minor
@@ -110,6 +121,7 @@ bld_dev_tbl()
     #validate partition file by examining header row
     if [ ${_devparttbl[$mjrofst]} != "major" -o ${_devparttbl[$mnrofst]} != "minor" -o ${_devparttbl[$blkofst]} != "#blocks" -o ${_devparttbl[$namofst]} != "name" ]; then
         echo "invalid partition file - first line must contain \"major minor #blocks name\""
+        logmessage "invalid partition file - first line must contain \"major minor #blocks name\""
         exit 2
     fi
     #calculate # of partition entries
@@ -155,19 +167,21 @@ if [ "x$outfile" == "x-" ]; then outfile=""; fi
 if [ "x$outfile" != "x" ]; then outfile="_"$outfile; fi
 outfile=$blkfile$outfile"_"$dispactn$dispdevf$outputext
 
-echo "Reading trace file $blkfile"
-echo "Reading partition file $prtfile"
-echo "Writing csv file $outfile"
-echo "Filtering for action codes $dispactn"
+logmessage "Reading trace file $blkfile"
+logmessage "Reading partition file $prtfile"
+logmessage "Writing csv file $outfile"
+logmessage "Filtering for action codes $dispactn"
 
 if [ $actn != "." ]; then actn="[$actn]"; fi #brackets for awk matching expression, . for any character
 
 if [ $mmfltr == "\"\"" ]; then
     echo "device $devfltr not found in partition table"
     cat $prtfile
+    logmessage "device $devfltr not found in partition table"
+    cat $prtfile >> $logfile
     exit 2
 elif [ $mmfltr != "1" ]; then
-    echo "Filtering for device $devfltr"
+    logmessage "Filtering for device $devfltr"
 fi
 
 # Process trace file, passing only rows that match the selected Action values
