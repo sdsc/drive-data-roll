@@ -241,9 +241,15 @@ fi
 #/opt/tacc_statsd/taccstats end $SLURM_JOB_ID > /dev/null 2>&1
 
 # Shutdown seagate monitoring...
-/usr/bin/test -x /opt/seagate/stxdaemon
-if [[ $? -eq 0 ]]; then
-  /usr/bin/pkill -HUP -f stxdaemon
+if [[ $(/usr/bin/lsscsi | /bin/grep -i ST800FM0043 ) && -x /opt/seagate/stxdaemon ]]; then
+    # Send the shutdown signal to the stxdaemon which will call stxnodemetricsmanager.sh STOP
+    /usr/bin/pkill -HUP -f /opt/seagate/stxdaemon
+
+    # Now we need to wait for stxdaemon to finish...
+    stxdaemon_pid=$(/usr/bin/pgrep -f /opt/seagate/stxdaemon)
+    while [[ ( -d /proc/$stxdaemon_pid ) && ( -z `/bin/grep zombie /proc/$stxdaemon_pid/status` ) ]]; do
+        sleep 1
+    done
 fi
 
 if [[ ${SLURM_JOB_PARTITION} == "virt" ]] ; then
