@@ -1,7 +1,10 @@
 #!/bin/bash
 
-version=0.71
+version=1.0
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
+
+# Version 1.0, May 2016 BEL
+# Added logging of block IO parameters and some system configuration information
 
 # Version 0.71, February 2016 BEL
 # statsscript.sh has been broken into three scripts iostatscript.sh, mpstatscript.sh and vmstatscript.sh
@@ -66,8 +69,9 @@ declare filebase="${appname}_${jobid}_$(hostname -s)"
 declare basefolder="/scratch/drive-data"
 declare folder="$basefolder/$appname/${appname}_$jobid/$filebase"
 declare logfile="$basefolder/$(hostname -s).log"
+declare paramfile=${folder}/${TESTdt}_${filebase}_parameters.log
 
-#Detemine directory of executable
+#Determine directory of executable
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
@@ -76,6 +80,26 @@ logcreate $logfile
 logstart $logfile
 logmessage "Command Line: $(readlink -fn $0) $@"
 logmessage "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
+
+#Log various IO and system parameters
+getSysParams()
+{
+    #Log block IO and system parameters
+    for drive in ${_drives[@]}; do
+        echo "$(date --rfc-3339=seconds) $drive parameters" >> $paramfile
+        for ele in /sys/block/$(basename $drive)/queue/*;do if [ -f $ele -a -r $ele ];then echo `cat $ele` > ptemp;printf "%24s: %s\n" $(basename $ele) "`cat ptemp`";fi;done >> $paramfile 2> /dev/null
+        for ele in /sys/block/$(basename $drive)/device/*;do if [ -f $ele -a -r $ele ];then echo `cat $ele` > ptemp;printf "%24s: %s\n" $(basename $ele) "`cat ptemp`";fi;done >> $paramfile 2> /dev/null
+    done
+    echo "$(date --rfc-3339=seconds) system parameters" >> $paramfile
+    plist=`dmidecode -s > /dev/null 2> ddtemp;cat ddtemp | $AWKBIN '/^ / { print }'`;for par in $plist;do ptemp=`dmidecode -s $par`;printf "%24s: %s\n" $par "`echo $ptemp`";done >> $paramfile 2> /dev/null
+    CPUCORES=$(cat /proc/cpuinfo | grep "cpu cores" | head -1 | $AWKBIN '{print $4}')
+    CPUSIBLINGS=$(cat /proc/cpuinfo | grep "siblings" | head -1 | $AWKBIN '{print $3}')
+    CPUCOUNT=$(($((`cat /proc/cpuinfo | grep processor | tail -1 | $AWKBIN {'print $3'}`+1))/$CPUSIBLINGS))
+    printf "%24s: %s\n" "CPU count" $CPUCOUNT >> $paramfile
+    printf "%24s: %s\n" "Cores / CPU" $CPUCORES >> $paramfile
+    printf "%24s: %s\n" "Siblings / Core" $(( $CPUSIBLINGS / $CPUCORES )) >> $paramfile
+    dmidecode -t memory | $AWKBIN 'BEGIN {cnt=0;siz=0} {if ($1 == "Size:" && $2 != "No") {cnt=cnt+1;siz+=$2;cunit=$3}} {if ($3 == "Speed:" && $4 != "Unknown") {speed=$4;sunit=$5}} {if ($2 == "Factor:") {ff=$3}} {if ($1 == "Type:") {type=$2}} END {printf "%d %s %ss totaling %d %s at %d %s\n", cnt, type, ff, siz, cunit, speed, sunit}'  >> $paramfile
+}
 
 #Discover drives as /dev/sdx and place in _drives array
 #Call SeaChest -s to get SCSI_generic names filtered by drive model
@@ -104,6 +128,9 @@ for ((ndx=0; ndx < ${#_drives[@]}; ndx++)); do
     logmessage "/dev/$drive = ${_drives[$ndx]}"
 done
 
+#Make folder for storing metrics and logs if not already existing
+if [ ! -d $folder ]; then mkdir -p $folder; fi
+
 #Define scripts and their parameters
 #Array for scripts to run at start. Can be added to. Run in their own thread.
 declare -a _scriptstostart=(\
@@ -121,6 +148,10 @@ declare -a _scriptsatend=(\
 
 #Kick off sampling scripts in separate threads and return
 if [ $func == "START" ]; then
+
+    getSysParams
+
+    #Kick off scripts
     for ((ndx=0; ndx < ${#_scriptstostart[@]}; ndx++)); do
         script=${_scriptstostart[$ndx]}
         logmessage "Starting ${script}"

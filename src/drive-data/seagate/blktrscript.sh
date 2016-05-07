@@ -1,7 +1,11 @@
 #!/bin/bash
 
-version=1.5
+version=2.0
 # blktrscript.sh orchestrates taking blktrace/parse samples
+
+# Version 2.0, May 2016 BEL
+# Added error checking/logging
+# Fixed issue with blkparse -o clipping the filename to 126 characters by using redirect > vs -o
 
 # Version 1.5, January 2016 BEL
 # Updated parameter parsing so it can handle a single parameter in quotes ie "/dev/sdc"
@@ -22,7 +26,8 @@ version=1.5
 # Set period to 1 when initialtrace is false
 # Enhanced periodwaitsecs log messages
 # Cleaned up usage text and added _ after date to file names
-# Corrected partions and log file names to spec
+# Corrected partitions and log file names to spec
+
 # Version 1.2, October 2015 TKC
 # Refactoring, common code to ./common.sh which must be sourced early
 # Here document for usage
@@ -37,18 +42,13 @@ version=1.5
 # Version 1.0, March 2015.
 # Runs blktrace after 2 minutes (firstwaitsecs) then at the end of every period thereafter
 
-# Detemine directory of executable and source common functions
+# Determine directory of executable and source common functions
 declare stxappdir=$(dirname $0)
 source ${stxappdir}/common.sh
 
 declare BLKTRACE_BIN=$(/usr/bin/which blktrace)
 declare BLKPARSE_BIN=$(/usr/bin/which blkparse)
 declare GZIP_BIN=$(/usr/bin/which gzip)
-
-if [[ ! -x ${BLKTRACE_BIN} ]] || [[ ! -x ${BLKPARSE_BIN} ]]; then
-    echo "$(basename $0) cannot run without blktrace and blkparse"
-    exit 1
-fi
 
 #echo "\$1=$1"
 #echo "\$2=$2"
@@ -122,7 +122,7 @@ echo "device=          $device"
 echo "runsecs=         $runsecs"
 echo "tracedwell=      $tracedwell"
 echo "sampleperiodsecs=$sampleperiodsecs"
-echo "firstwarisecs=   $firstwaitsecs"
+echo "firstwaitsecs=   $firstwaitsecs"
 echo "padsecs=         $padsecs"
 echo "tracedir=        $tracedir"
 echo "tracename=       $trname"
@@ -147,6 +147,7 @@ runperiods=$((runsecs/sampleperiodsecs))
 TESTdt=`date +%Y-%m-%d_%H-%M`
 logfile=$tracedir/$TESTdt${trname}_trace.log
 partfile=$tracedir/$TESTdt${trname}_partitions
+tmpfile=$tracedir/$TESTdt${trname}_trace.tmp
 
 usage()
 {
@@ -282,16 +283,19 @@ gettrace()
     tracedt=`date +%Y-%m-%d_%H-%M`
     outfile=$tracedir"/"$tracedt$trname"_period"$((period++))"of${runperiods}_blkp"
     logmessage "Logging to $outfile"
-    ${BLKTRACE_BIN} -d $device -w $tracedwell -o - | ${BLKPARSE_BIN} -i - -o $outfile
+    ${BLKTRACE_BIN} -d $device -w $tracedwell -o - | ${BLKPARSE_BIN} -i - > $outfile 2> $tmpfile
+    if [ $? -ne 0 ];then logmessage "blktrace/parse failed";cat $tmpfile >> $logfile;exit $?;fi
     #convert to .csv by device
     declare -a _drives=($device)
     for drive in ${_drives[@]}; do
         logmessage "Converting $outfile to csv for $drive"
         # btconvert.sh requires device stripped of '/dev/' prefix...
          dev=$(basename $drive)
-        ${stxappdir}/btconvert.sh $outfile $partfile - DC $dev
+        ${stxappdir}/btconvert.sh $outfile $partfile - DC $dev 2> $tmpfile
+        if [ $? -ne 0 ];then logmessage "btconvert error";cat $tmpfile >> $logfile;exit $?;fi
     done
-    ${GZIP_BIN} $outfile
+    ${GZIP_BIN} $outfile 2> $tmpfile
+    if [ $? -ne 0 ];then logmessage "gzip error";cat $tmpfile >> $logfile;exit $?;fi
 }
 
 if [ ${#_commandsave[@]} -lt 1 ]; then usage; fi #Display usage if no parameters are given
@@ -307,14 +311,21 @@ logmessage "Command Line: $(readlink -fn $0) ${_commandsave[@]}"
 #Log parameters
 logmessage "dwell $tracedwell, 1stwait $firstwaitsecs, period $sampleperiodsecs, pad $padsecs, periods $runperiods"
 
+#Verify blktrace and blkparse are available/executable
+if [[ ! -x ${BLKTRACE_BIN} ]] || [[ ! -x ${BLKPARSE_BIN} ]]; then
+    logmessage "$(basename $0) cannot run without blktrace and blkparse"
+    exit 1
+fi
+
 #Capture the partitions file
 logmessage "Copying /proc/partitions to $partfile"
 cp /proc/partitions $partfile
 
 #Mount debug fs needed by blktrace if not already mounted
-mount -t debugfs | grep -q "/sys/kernel/debug" || mount -t debugfs debugfs /sys/kernel/debug >/dev/null 2>&1
+mount -t debugfs | grep -q "/sys/kernel/debug" || mount -t debugfs debugfs /sys/kernel/debug >/dev/null 2> $tmpfile
 if [ 0 -ne $? ]; then
-    echo "$(basename $0) requires debugfs for blktrace"
+    logmessage "$(basename $0) requires debugfs for blktrace"
+    cat $tmpfile >> $logfile
     exit 1
 fi
 
@@ -345,6 +356,8 @@ if [ $periodwaitsecs -ge 0 ]; then
         fi
     done
 fi
+
+rm -f $tmpfile
 logmessage "Done"
 
 exit 0
