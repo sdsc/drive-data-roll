@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 version=2.0
 # blktrscript.sh orchestrates taking blktrace/parse samples
@@ -327,6 +327,25 @@ if [ 0 -ne $? ]; then
     logmessage "$(basename $0) requires debugfs for blktrace"
     cat $tmpfile >> $logfile
     exit 1
+else
+    # Make sure we can use blktrace...
+    tf=$(mktemp)
+    declare -i ret=1
+    declare -i iters=0
+    while [ $ret -ne 0 -a $iters -lt 3 ];
+    do
+        /usr/bin/timeout -s INT 6 /usr/bin/btrace -w 5 $(/usr/bin/sg_map | /bin/awk '/sd/ {printf("%s ",$2)} END {printf("\n")}') >${tf} 2>&1
+        /bin/grep -i "Throughput" ${tf} >/dev/null 2>&1
+        ret=$?
+        ((iters++))
+    done
+    /bin/rm ${tf}
+    if [[ $iters -eq 3 ]]; then
+        logmessage "Could not enable blktrace"
+        exit 1
+    else
+        logmessage "blktrace verified in $iters iterations"
+    fi
 fi
 
 #Take first trace after firstwaitsecs

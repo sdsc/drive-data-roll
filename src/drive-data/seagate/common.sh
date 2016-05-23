@@ -49,4 +49,6 @@ _sleep()
 }
 
 trap_call="";
-trap 'if [ -z ${trap_call} ]; then trap_call="1"; trap_mesg ; fi' 2 10 15
+trap 'echo "$(basename $0) caught SIGINT";  if [ -z ${trap_call} ]; then trap_call="1"; trap_mesg ; fi' SIGINT
+trap 'echo "$(basename $0) caught SIGTERM"; if [ -z ${trap_call} ]; then trap_call="1"; trap_mesg ; fi' SIGTERM
+trap 'echo "$(basename $0) caught SIGUSR1"; if [ -z ${trap_call} ]; then trap_call="1"; trap_mesg ; fi' SIGUSR1

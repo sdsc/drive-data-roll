@@ -5,7 +5,7 @@ COMPILERNAME := $(firstword $(subst /, ,$(ROLLCOMPILER)))
 
 NAME           = sdsc-seagate
 VERSION        = 6.2
-RELEASE        = 0
+RELEASE        = 1
 PKGROOT        = /opt/seagate
 
 SRC_SUBDIR     = seagate

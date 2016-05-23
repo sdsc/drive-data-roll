@@ -2,8 +2,6 @@
 
 bn=$(/bin/basename $0)
 dn=$(/usr/bin/dirname $0)
-lockfile=/var/lock/$bn
-pidfile=/var/run/$bn
 
 param1=$1
 param2=$2
@@ -13,7 +11,6 @@ cleanup_and_exit()
 {
     echo "pid: $$ caught $1, exiting"
     $dn/stxnodemetricsmanager.sh END $param1 $param2 $param3
-    /bin/rm $lockfile $runfile
     exit
 }
 
