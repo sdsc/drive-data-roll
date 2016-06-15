@@ -31,14 +31,13 @@ logcreate()
 logstart()
 {
     _logpath=$1
-    echo "Date       Time            Event" >> $_logpath
+    printf "%-10s %-14s %-12s %-12s %-12s %s\n" Date Time Application Job Node Event
     logmessage "$(readlink -fn $0) version $version"
 }
 
 logmessage()
 {
-    #echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
-    echo "$(date --rfc-3339=seconds)  $@" >> $logfile
+    printf "%10s %14s %-12s %-12s %-12s %s\n" $(date --rfc-3339=seconds)  $appname $jobid $(hostname -s) "$@" >> $logfile
 }
 
 _sleep()
