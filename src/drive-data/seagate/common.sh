@@ -1,4 +1,4 @@
-#Detemine directory of executables
+#Determine directory of executables
 
 WORDSIZE=`uname -m`
 if [ "${WORDSIZE}" == "x86_64" ] ; then
@@ -31,14 +31,19 @@ logcreate()
 logstart()
 {
     _logpath=$1
-    echo "Date       Time            Event" >> $_logpath
+    #echo "Date       Time            Event" >> $_logpath
+    printf "%-10s %-14s %-16s %-16s %-16s %s\n" Date Time Application Job Node Event >> $_logpath
     logmessage "$(readlink -fn $0) version $version"
 }
 
 logmessage()
 {
     #echo `date +%Y-%m-%d_%H-%M` $@ >> $logfile
-    echo "$(date --rfc-3339=seconds)  $@" >> $logfile
+    #echo "$(date --rfc-3339=seconds)  $@" >> $logfile
+    if [ X$appname == "X" ];then appname="-";fi
+    if [ X$jobid == "X" ];then jobid="-";fi
+    printf "%10s %14s %-16s %-16s %-16s " $(date --rfc-3339=seconds)  $appname $jobid $(hostname -s) >> $logfile
+    echo $@ >> $logfile
 }
 
 _sleep()
