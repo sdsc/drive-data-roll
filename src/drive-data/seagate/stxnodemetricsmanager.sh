@@ -1,12 +1,7 @@
 #!/bin/bash
 
-version=1.1
+version=1.0
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
-
-# Version 1.1, June 2016 BEL
-# Added log entries at the start and end of the START and END process to allow time delta calculations on the last item processed
-# Added application, job and node fields to the log to provide sort/select fields for post analysis and allow easy merging of all node logs (see common.sh)
-# Added df -h to parameter log file
 
 # Version 1.0, May 2016 BEL
 # Added logging of block IO parameters and some system configuration information
@@ -104,7 +99,6 @@ getSysParams()
     printf "%24s: %s\n" "Cores / CPU" $CPUCORES >> $paramfile
     printf "%24s: %s\n" "Siblings / Core" $(( $CPUSIBLINGS / $CPUCORES )) >> $paramfile
     dmidecode -t memory | $AWKBIN 'BEGIN {cnt=0;siz=0} {if ($1 == "Size:" && $2 != "No") {cnt=cnt+1;siz+=$2;cunit=$3}} {if ($3 == "Speed:" && $4 != "Unknown") {speed=$4;sunit=$5}} {if ($2 == "Factor:") {ff=$3}} {if ($1 == "Type:") {type=$2}} END {printf "%d %s %ss totaling %d %s at %d %s\n", cnt, type, ff, siz, cunit, speed, sunit}'  >> $paramfile
-    df -h >> $paramfile
 }
 
 #Discover drives as /dev/sdx and place in _drives array
@@ -163,7 +157,6 @@ if [ $func == "START" ]; then
         logmessage "Starting ${script}"
         $script &
     done
-    logmessage "START function complete"
     exit 0
 fi
 
@@ -202,7 +195,6 @@ if [ $func == "END" ]; then
         ${script}
         logmessage "Completed $script"
     done
-    logmessage "END function complete"
     exit 0
 fi
 
