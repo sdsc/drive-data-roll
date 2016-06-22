@@ -1,7 +1,15 @@
 #!/bin/bash
 
-version=2.0
+version=2.1
 # blktrscript.sh orchestrates taking blktrace/parse samples
+
+# Version 2.1, June 2016 BEL
+# Added logic to calculate the elapsed time of gettrace which can exceed the intended block trace dwell
+# Use the elapsed time to better calculate the time to start the next period at the correct time
+# This resolves the period skew issue due to blktrace/parse + btconvert taking longer than trace dwell
+# Added logic to skip trace and log message when trace dwell + pad exceeds remaining time within the period
+# This can happen when the prior trace exceeds its period
+# Changed btconvert and gzip errors to log only with no exit
 
 # Version 2.0, May 2016 BEL
 # Added error checking/logging
@@ -278,10 +286,22 @@ trap_mesg()
     exit 0 #exit w/o starting any further periods
 }
 
+gettrace_debug()
+{
+    declare -i startsecs=`date +%s`
+    declare -a _prcnt=(100 90 100 120 150 180 200 220);waitsec=$((tracedwell*${_prcnt[$((period%${#_prcnt[@]}))]}/100))
+    #waitsec=$((tracedwell*8/10));waitsec=$((waitsec+waitsec*RANDOM/2**15))
+    logmessage "Period $period dwell = $waitsec seconds"
+    sleep $waitsec
+    period=$((period+1))
+    elapsedsecs=$((`date +%s`-startsecs))
+}
+
 gettrace()
 {
+    declare -i startsecs=`date +%s`
     tracedt=`date +%Y-%m-%d_%H-%M`
-    outfile=$tracedir"/"$tracedt$trname"_period"$((period++))"of${runperiods}_blkp"
+    outfile=$tracedir"/"$tracedt$trname"_period"$((period++))"of${runperiods}_blkp" #Note this is where period is incremented
     logmessage "Logging to $outfile"
     ${BLKTRACE_BIN} -d $device -w $tracedwell -o - | ${BLKPARSE_BIN} -i - > $outfile 2> $tmpfile
     if [ $? -ne 0 ];then logmessage "blktrace/parse failed";cat $tmpfile >> $logfile;exit $?;fi
@@ -292,10 +312,11 @@ gettrace()
         # btconvert.sh requires device stripped of '/dev/' prefix...
          dev=$(basename $drive)
         ${stxappdir}/btconvert.sh $outfile $partfile - DC $dev 2> $tmpfile
-        if [ $? -ne 0 ];then logmessage "btconvert error";cat $tmpfile >> $logfile;exit $?;fi
+        if [ $? -ne 0 ];then logmessage "btconvert error, exit code $?";cat $tmpfile >> $logfile;fi
     done
     ${GZIP_BIN} $outfile 2> $tmpfile
-    if [ $? -ne 0 ];then logmessage "gzip error";cat $tmpfile >> $logfile;exit $?;fi
+    if [ $? -ne 0 ];then logmessage "gzip error, exit code $?";cat $tmpfile >> $logfile;fi
+    elapsedsecs=$((`date +%s`-startsecs))
 }
 
 if [ ${#_commandsave[@]} -lt 1 ]; then usage; fi #Display usage if no parameters are given
@@ -348,33 +369,40 @@ else
     fi
 fi
 
-#Take first trace after firstwaitsecs
-if [ $initialtrace == "TRUE" -a $runsecs -ge $((firstwaitsecs+tracedwell)) ]; then
-    logmessage "Sleeping for $firstwaitsecs before first trace"
-    _sleep $firstwaitsecs
-    gettrace
-fi
+# Since running a blktrace for w seconds + blkparse + btconvert takes > w seconds,
+# use elapsed time vs tracedwell to calculate periodwaitsecs.
 
-declare -i periodwaitsecs=-1
-if [ $initialtrace == "TRUE" -a $runsecs -ge $((firstwaitsecs+tracedwell*2+padsecs)) ]; then
-    periodwaitsecs=$((sampleperiodsecs-firstwaitsecs-tracedwell*2-padsecs))
-elif [ $initialtrace == "FALSE" -a $runsecs -ge $((tracedwell-padsecs)) ]; then
-    periodwaitsecs=$((sampleperiodsecs-tracedwell-padsecs))
-fi
-if [ $periodwaitsecs -ge 0 ]; then
-    #Each successive trace ends padsecs seconds prior to the end of the period
-    logmessage "Sleeping for $periodwaitsecs before period $period trace"
-    _sleep $periodwaitsecs
-
-    while [ $runperiods -ge $period ]; do
+# Take first trace after firstwaitsecs when the optional initial trace in the first period is requested
+declare -i elapsedsecs=0
+if [ $initialtrace == "TRUE" ]; then
+    if [ $sampleperiodsecs -ge $((firstwaitsecs+tracedwell)) ]; then
+        logmessage "Sleeping for $firstwaitsecs seconds before first trace"
+        _sleep $firstwaitsecs
         gettrace
-        if [ $runperiods -ge $period ]; then
-            periodwaitsecs=$((sampleperiodsecs-tracedwell))
-            logmessage "Sleeping for $periodwaitsecs before period $period trace"
-            _sleep $periodwaitsecs
-        fi
-    done
+        elapsedsecs=$((elapsedsecs+firstwaitsecs)) #Total time so far
+    else
+        logmessage "Period $period skipped due to insufficient time in period"
+        period=$((period+1))
+    fi
 fi
+
+periodwaitsecs=$((sampleperiodsecs-elapsedsecs-tracedwell-padsecs)) #Negative if insufficient time
+
+while [ $runperiods -ge $period ]; do
+    if [ $periodwaitsecs -lt 0 ]; then
+        logmessage "Period $period skipped due to insufficient time in period"
+        period=$((period+1))
+        periodwaitsecs=$((sampleperiodsecs+periodwaitsecs)) #Realign for the next period
+    fi
+
+    #Each successive trace ends padsecs seconds prior to the end of the period
+    if [ $runperiods -ge $period ]; then
+        logmessage "Sleeping for $periodwaitsecs seconds before period $period trace"
+        _sleep $periodwaitsecs
+        gettrace
+        periodwaitsecs=$((sampleperiodsecs-elapsedsecs))
+    fi
+done
 
 rm -f $tmpfile
 logmessage "Done"
