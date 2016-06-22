@@ -1,7 +1,16 @@
 #!/bin/bash
 
-version=1.0
+version=1.1
 # Orchestrates folder creation, file naming and calling of metrics collection scripts
+
+# Version 1.1, June 2016 BEL
+# Added log entries at the start and end of the START and END process to allow time delta calculations on the last item processed
+# Added application, job and node fields to the log to provide sort/select fields for post analysis and allow easy merging of all node logs (see common.sh)
+# Added df -h to parameter log file
+# Changed sample interval to start at the beginning of a period
+# Set sample interval pad to a minimum of 180 seconds
+# Eliminate tracing when run time is less than 480 seconds
+# Fixed some issues in system memory reporting to parameter file
 
 # Version 1.0, May 2016 BEL
 # Added logging of block IO parameters and some system configuration information
@@ -54,14 +63,22 @@ declare appname=$2
 declare jobid=$3
 declare runtime=$4 #Runtime in seconds
 
+declare -i minpadsecs=180 #minimum pad seconds
+declare -i minsamsecs=300 #minimum sample seconds
+declare -i maxsamsecs=1800 #maximum sample seconds
+declare -i minrunsecs=$(( $minpadsecs + $minsamsecs )) #runtimes < minrunsecs will not run
+declare -i maxpersecs=3600 #maximum sample period seconds
+
 #Calculate time parameters for time based scripts
 declare -i runsecs=$runtime #run time in seconds, entire period over which the script runs
-declare -i tracedwell=$runsecs #duration of a single trace in seconds
-if [ $tracedwell -gt 1800 ]; then tracedwell=1800; fi #1/2 hour max
+declare -i tracedwell=$(( $runsecs - $minpadsecs )) #duration of a single trace in seconds
+if [ $tracedwell -gt $maxsamsecs ]; then tracedwell=$maxsamsecs; fi #limit to max
 declare -i sampleperiodsecs=$runsecs #duration of a period within which trace sample is taken
-if [ $sampleperiodsecs -gt 3600 ]; then sampleperiodsecs=3600; fi #1 hour max
+if [ $sampleperiodsecs -gt $maxpersecs ]; then sampleperiodsecs=$maxpersecs; fi #limit to max
 declare -i firstwaitsecs=-1 #delay in seconds to first trace sample, -1=no initial sample
-declare -i padsecs=0 #seconds from end of trace to end of sample period
+declare -i padsecs=$((sampleperiodsecs - tracedwell)) #force trace to the start of sample period
+
+#printf "%-8s %-8s %-8s %-8s %-8s\n" $runsecs $tracedwell $sampleperiodsecs $padsecs $((runsecs / sampleperiodsecs))
 
 #Build folder name
 declare TESTdt=`date +%Y-%m-%d_%H-%M`
@@ -78,12 +95,18 @@ source ${stxappdir}/common.sh
 #Create/Start log
 logcreate $logfile
 logstart $logfile
-logmessage "Command Line: $(readlink -fn $0) $@"
+logmessage "Command Line: $(readlink -fn $0) $*"
 logmessage "Function $func, App $appname, Job $jobid, Runtime(sec) $runtime"
+
+if [ $runsecs -lt $minrunsecs ];then
+    logmessage "No samples taken for runtime < $minrunsecs seconds"
+    exit 0
+fi
 
 #Log various IO and system parameters
 getSysParams()
 {
+    echo "" > $paramfile
     #Log block IO and system parameters
     for drive in ${_drives[@]}; do
         echo "$(date --rfc-3339=seconds) $drive parameters" >> $paramfile
@@ -98,7 +121,8 @@ getSysParams()
     printf "%24s: %s\n" "CPU count" $CPUCOUNT >> $paramfile
     printf "%24s: %s\n" "Cores / CPU" $CPUCORES >> $paramfile
     printf "%24s: %s\n" "Siblings / Core" $(( $CPUSIBLINGS / $CPUCORES )) >> $paramfile
-    dmidecode -t memory | $AWKBIN 'BEGIN {cnt=0;siz=0} {if ($1 == "Size:" && $2 != "No") {cnt=cnt+1;siz+=$2;cunit=$3}} {if ($3 == "Speed:" && $4 != "Unknown") {speed=$4;sunit=$5}} {if ($2 == "Factor:") {ff=$3}} {if ($1 == "Type:") {type=$2}} END {printf "%d %s %ss totaling %d %s at %d %s\n", cnt, type, ff, siz, cunit, speed, sunit}'  >> $paramfile
+    dmidecode -t memory | $AWKBIN 'BEGIN {cnt=0;siz=0} {if ($1 == "Size:" && $2 != "No") {cnt=cnt+1;siz+=$2;cunit=$3}} {if ($3 == "Speed:" && $4 != "Unknown") {speed=$4;sunit=$5}} {if ($2 == "Factor:" && $3 != "Unknown") {ff=$3}} {if ($1 == "Type:" && $2 != "Unknown") {type="";for (i = 2; i <= NF; i++) {type=type $i " "}}} END {printf "%d %s%ss totaling %d %s at %d %s\n", cnt, type, ff, siz, cunit, speed, sunit}'  >> $paramfile
+    df -h >> $paramfile
 }
 
 #Discover drives as /dev/sdx and place in _drives array
@@ -157,6 +181,7 @@ if [ $func == "START" ]; then
         logmessage "Starting ${script}"
         $script &
     done
+    logmessage "START function complete"
     exit 0
 fi
 
@@ -195,6 +220,7 @@ if [ $func == "END" ]; then
         ${script}
         logmessage "Completed $script"
     done
+    logmessage "END function complete"
     exit 0
 fi
 
