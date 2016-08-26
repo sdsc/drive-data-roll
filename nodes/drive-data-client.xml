@@ -13,7 +13,7 @@
 	</copyright>
 
 	<package>blktrace</package>
-	<package>sdsc-seagate-public</package>
+	<package>sdsc-seagate</package>
 	<package>sdsc-seagate-private</package>
 
 <post>
